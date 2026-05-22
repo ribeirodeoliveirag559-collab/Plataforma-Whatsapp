@@ -25,6 +25,7 @@ model User {
 
   tickets        Ticket[]
   sentMessages   Message[] @relation("SentMessages")
+  defaultQueue   Queue?    @relation("UserDefaultQueue", fields: [defaultQueueId], references: [id])
 
   @@map("users")
 }
@@ -41,6 +42,7 @@ model Queue {
   deletedAt       DateTime?
 
   tickets         Ticket[]
+  defaultUsers    User[]   @relation("UserDefaultQueue")
 
   @@map("queues")
 }
