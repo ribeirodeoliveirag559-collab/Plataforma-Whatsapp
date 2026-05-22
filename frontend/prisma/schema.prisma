@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id             Int       @id @default(autoincrement())
+  name           String
+  email          String?   @unique
+  username       String    @unique
+  passwordHash   String
+  profileSlug    String    @default("user")
+  active         Boolean   @default(true)
+  avatar         String?
+  isManager      Boolean   @default(false)
+  defaultQueueId Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  tickets        Ticket[]
+  sentMessages   Message[] @relation("SentMessages")
+
+  @@map("users")
+}
+
+model Queue {
+  id              Int       @id @default(autoincrement())
+  name            String
+  color           String    @default("#6366f1")
+  greetingMessage String?
+  order           Int       @default(0)
+  autoClose       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  tickets         Ticket[]
+
+  @@map("queues")
+}
+
+model Contact {
+  id            Int       @id @default(autoincrement())
+  name          String    @default("")
+  number        String
+  email         String?
+  profilePicUrl String?
+  company       String?
+  cpf           String?
+  cnpj          String?
+  observation   String?
+  blacklist     Boolean   @default(false)
+  isGroup       Boolean   @default(false)
+  gosacId       Int?      @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  tickets       Ticket[]
+  tags          ContactTag[]
+
+  @@map("contacts")
+}
+
+model Tag {
+  id       Int          @id @default(autoincrement())
+  name     String       @unique
+  color    String       @default("#6366f1")
+  contacts ContactTag[]
+
+  @@map("tags")
+}
+
+model ContactTag {
+  contactId Int
+  tagId     Int
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@map("contact_tags")
+}
+
+model Ticket {
+  id             Int          @id @default(autoincrement())
+  status         TicketStatus @default(PENDING)
+  unreadMessages Int          @default(0)
+  lastMessage    String?
+  isGroup        Boolean      @default(false)
+  aiSummary      String?
+  contactId      Int
+  queueId        Int?
+  userId         Int?
+  gosacId        Int?         @unique
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  closedAt       DateTime?
+
+  contact        Contact  @relation(fields: [contactId], references: [id])
+  queue          Queue?   @relation(fields: [queueId], references: [id])
+  user           User?    @relation(fields: [userId], references: [id])
+  messages       Message[]
+
+  @@map("tickets")
+}
+
+enum TicketStatus {
+  PENDING
+  OPEN
+  CLOSED
+}
+
+model Message {
+  id           Int       @id @default(autoincrement())
+  body         String?
+  fromMe       Boolean   @default(false)
+  mediaType    String    @default("chat")
+  mediaUrl     String?
+  read         Boolean   @default(false)
+  isDeleted    Boolean   @default(false)
+  quotedMsgId  Int?
+  ticketId     Int
+  senderUserId Int?
+  gosacId      String?   @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  ticket       Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender       User?     @relation("SentMessages", fields: [senderUserId], references: [id])
+  quotedMsg    Message?  @relation("QuotedMessages", fields: [quotedMsgId], references: [id])
+  replies      Message[] @relation("QuotedMessages")
+
+  @@map("messages")
+}
