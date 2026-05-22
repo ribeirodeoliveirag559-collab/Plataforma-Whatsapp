@@ -2,13 +2,9 @@
 import { useEffect, useState } from 'react'
 import { MessageSquare, Clock, CheckCircle, TrendingUp } from 'lucide-react'
 
-interface MonthData {
+type MonthData = {
   label: string
-  Vendas: number
-  Suporte: number
-  'Assistência Técnica': number
-  Financeiro: number
-  Outros: number
+  [key: string]: string | number
 }
 
 interface CategoryMonth { category: string; count: number }
@@ -57,7 +53,7 @@ export default function DashboardPage() {
   const maxVal = Math.max(
     1,
     ...data.monthlyData.flatMap(m =>
-      Object.keys(CATEGORY_COLORS).map(k => (m as Record<string, unknown>)[k] as number || 0)
+      Object.keys(CATEGORY_COLORS).map(k => (m[k] as number) || 0)
     )
   )
 
