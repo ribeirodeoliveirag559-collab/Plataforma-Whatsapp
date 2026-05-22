@@ -1,0 +1,216 @@
+// Plataforma WhatsApp PH Informática
+// Schema baseado na estrutura de dados do Gosac
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// USUÁRIOS / ATENDENTES
+// ============================================================
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String?   @unique
+  username     String?   @unique
+  passwordHash String
+  profileSlug  String    @default("user") // admin, user, suporte
+  active       Boolean   @default(true)
+  avatar       String?
+  isManager    Boolean   @default(false)
+  defaultQueueId Int?
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  tickets      Ticket[]
+  sentMessages Message[] @relation("SentMessages")
+
+  @@map("users")
+}
+
+// ============================================================
+// DEPARTAMENTOS / FILAS
+// ============================================================
+model Queue {
+  id              Int       @id @default(autoincrement())
+  name            String
+  color           String    @default("#6366f1")
+  greetingMessage String?
+  order           Int       @default(0)
+  autoClose       Boolean   @default(false)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  tickets         Ticket[]
+
+  @@map("queues")
+}
+
+// ============================================================
+// CONTATOS
+// ============================================================
+model Contact {
+  id            Int       @id @default(autoincrement())
+  name          String    @default("")
+  number        String    // número WhatsApp com DDI (ex: 5562...)
+  email         String?
+  profilePicUrl String?
+  company       String?
+  cpf           String?
+  cnpj          String?
+  observation   String?
+  blacklist     Boolean   @default(false)
+  isGroup       Boolean   @default(false)
+
+  // Migrado do Gosac
+  gosacId       Int?      @unique
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  tickets       Ticket[]
+  tags          ContactTag[]
+
+  @@map("contacts")
+}
+
+// ============================================================
+// TAGS
+// ============================================================
+model Tag {
+  id        Int          @id @default(autoincrement())
+  name      String       @unique
+  color     String       @default("#6366f1")
+
+  contacts  ContactTag[]
+
+  @@map("tags")
+}
+
+model ContactTag {
+  contactId Int
+  tagId     Int
+
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@map("contact_tags")
+}
+
+// ============================================================
+// TICKETS / ATENDIMENTOS
+// ============================================================
+model Ticket {
+  id             Int      @id @default(autoincrement())
+  status         TicketStatus @default(PENDING)
+  unreadMessages Int      @default(0)
+  lastMessage    String?
+  isGroup        Boolean  @default(false)
+
+  // Resumo gerado pela IA porteira
+  aiSummary      String?
+
+  contactId      Int
+  contact        Contact  @relation(fields: [contactId], references: [id])
+
+  queueId        Int?
+  queue          Queue?   @relation(fields: [queueId], references: [id])
+
+  userId         Int?
+  user           User?    @relation(fields: [userId], references: [id])
+
+  // Migrado do Gosac
+  gosacId        Int?     @unique
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  closedAt       DateTime?
+
+  messages       Message[]
+
+  @@map("tickets")
+}
+
+enum TicketStatus {
+  PENDING  // aguardando triagem da IA
+  OPEN     // em atendimento
+  CLOSED   // encerrado
+}
+
+// ============================================================
+// MENSAGENS
+// ============================================================
+model Message {
+  id          Int       @id @default(autoincrement())
+  body        String?
+  fromMe      Boolean   @default(false)
+  mediaType   MediaType @default(CHAT)
+  mediaUrl    String?
+  read        Boolean   @default(false)
+  isDeleted   Boolean   @default(false)
+
+  // Referência à mensagem citada (reply)
+  quotedMsgId Int?
+  quotedMsg   Message?  @relation("QuotedMessages", fields: [quotedMsgId], references: [id])
+  replies     Message[] @relation("QuotedMessages")
+
+  ticketId    Int
+  ticket      Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  // Quem enviou (atendente)
+  senderUserId Int?
+  sender       User?    @relation("SentMessages", fields: [senderUserId], references: [id])
+
+  // Migrado do Gosac
+  gosacId     String?   @unique
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("messages")
+}
+
+enum MediaType {
+  CHAT
+  IMAGE
+  AUDIO
+  VIDEO
+  DOCUMENT
+  STICKER
+  VCARD
+}
+
+// ============================================================
+// CONEXÕES WHATSAPP (Meta WABA)
+// ============================================================
+model WhatsappConnection {
+  id          Int      @id @default(autoincrement())
+  name        String
+  phoneNumber String
+  wabaId      String?  // WhatsApp Business Account ID
+  phoneNumberId String? // ID do número no Meta
+  accessToken String?
+  status      ConnectionStatus @default(DISCONNECTED)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("whatsapp_connections")
+}
+
+enum ConnectionStatus {
+  CONNECTED
+  DISCONNECTED
+  CONNECTING
+}
