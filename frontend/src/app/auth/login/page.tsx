@@ -59,13 +59,13 @@ function CircuitBackground() {
     }
 
     const animate = () => {
-      ctx.fillStyle = 'rgba(5, 5, 16, 0.05)'
+      ctx.fillStyle = 'rgba(232, 244, 255, 0.08)'
       ctx.fillRect(0, 0, w, h)
       tracers = tracers.map(t => {
         const next = updateTracer(t, w, h)
         ctx.beginPath()
         ctx.arc(next.x, next.y, 1.5, 0, Math.PI * 2)
-        ctx.fillStyle = `hsla(${next.hue}, 90%, 80%, 1)`
+        ctx.fillStyle = `hsla(${next.hue}, 75%, 35%, 0.9)`
         ctx.fill()
         return next
       })
@@ -90,7 +90,7 @@ function CircuitBackground() {
         inset: 0,
         width: '100%',
         height: '100%',
-        background: '#050510',
+        background: '#e8f4ff',
         zIndex: 0,
       }}
     />
@@ -144,35 +144,35 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4 shadow-lg shadow-indigo-500/30">
             <span className="text-white text-2xl font-bold">PH</span>
           </div>
-          <h1 className="text-white text-2xl font-bold">PH Informática</h1>
-          <p className="text-slate-400 text-sm mt-1">Plataforma de Atendimento</p>
+          <h1 className="text-slate-800 text-2xl font-bold">PH Informática</h1>
+          <p className="text-slate-500 text-sm mt-1">Plataforma de Atendimento</p>
         </div>
 
         {/* Form com efeito glass */}
         <form
           onSubmit={handleSubmit}
           className="rounded-2xl p-8 shadow-2xl space-y-4 border border-white/10"
-          style={{ background: 'rgba(15, 23, 42, 0.80)', backdropFilter: 'blur(12px)' }}
+          style={{ background: 'rgba(255, 255, 255, 0.70)', backdropFilter: 'blur(12px)' }}
         >
           <div>
-            <label className="block text-slate-300 text-sm font-medium mb-1">Usuário</label>
+            <label className="block text-slate-700 text-sm font-medium mb-1">Usuário</label>
             <input
               type="text"
               value={form.username}
               onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-              className="w-full bg-slate-700/60 text-white rounded-lg px-4 py-2.5 border border-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-500"
+              className="w-full bg-white/80 text-slate-800 rounded-lg px-4 py-2.5 border border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-400"
               placeholder="seu.usuario"
               required
             />
           </div>
 
           <div>
-            <label className="block text-slate-300 text-sm font-medium mb-1">Senha</label>
+            <label className="block text-slate-700 text-sm font-medium mb-1">Senha</label>
             <input
               type="password"
               value={form.password}
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              className="w-full bg-slate-700/60 text-white rounded-lg px-4 py-2.5 border border-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-500"
+              className="w-full bg-white/80 text-slate-800 rounded-lg px-4 py-2.5 border border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-400"
               placeholder="••••••••"
               required
             />
