@@ -105,9 +105,10 @@ function CircuitBackground() {
 /* ── Página de Login ── */
 export default function LoginPage() {
   const router = useRouter()
-  const [form, setForm] = useState({ username: '', password: '' })
-  const [error, setError] = useState('')
+  const [form, setForm]     = useState({ username: '', password: '' })
+  const [error, setError]   = useState('')
   const [loading, setLoading] = useState(false)
+  const [splash, setSplash] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -130,7 +131,10 @@ export default function LoginPage() {
 
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
-      router.push('/dashboard/atendimentos')
+
+      // Exibe splash antes de navegar
+      setSplash(true)
+      setTimeout(() => router.push('/dashboard/atendimentos'), 2000)
     } catch {
       setError('Erro de conexão com o servidor')
     } finally {
@@ -139,57 +143,66 @@ export default function LoginPage() {
   }
 
   return (
-    <div className={styles.wrapper}>
-      <CircuitBackground />
-
-      <div className={styles.content}>
-        {/* Logo */}
-        <div className={styles.logoSection}>
-          <img src={LOGO_BASE64} alt="PH Informática" className={styles.logoImg} />
+    <>
+      {/* ── Splash de entrada ── */}
+      {splash && (
+        <div className={styles.splash}>
+          <div className={styles.splashRing} />
+          <img src={LOGO_BASE64} alt="PHchat" className={styles.splashLogo} />
+          <p className={styles.splashText}>Plataforma de Atendimento</p>
+          <div className={styles.splashBar} />
         </div>
+      )}
 
-        {/* Formulário */}
-        <form onSubmit={handleSubmit} className={styles.card}>
-          <div className={styles.field}>
-            <label className={styles.label}>Usuário</label>
-            <input
-              type="text"
-              value={form.username}
-              onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-              className={styles.input}
-              placeholder="seu.usuario"
-              required
-            />
-          </div>
+      <div className={styles.wrapper}>
+        <CircuitBackground />
 
-          <div className={styles.field}>
-            <label className={styles.label}>Senha</label>
-            <input
-              type="password"
-              value={form.password}
-              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              className={styles.input}
-              placeholder="••••••••"
-              required
-            />
-          </div>
+        <div className={styles.content}>
+          {/* Formulário centralizado */}
+          <form onSubmit={handleSubmit} className={styles.card}>
+            <p className={styles.cardTitle}>Bem-vindo</p>
+            <p className={styles.cardSubtitle}>Faça login para continuar</p>
 
-          {error && (
-            <div className={styles.error}>{error}</div>
-          )}
+            <div className={styles.field}>
+              <label className={styles.label}>Usuário</label>
+              <input
+                type="text"
+                value={form.username}
+                onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                className={styles.input}
+                placeholder="seu.usuario"
+                required
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={styles.button}
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
+            <div className={styles.field}>
+              <label className={styles.label}>Senha</label>
+              <input
+                type="password"
+                value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                className={styles.input}
+                placeholder="••••••••"
+                required
+              />
+            </div>
 
-        {/* Frase abaixo do card */}
-        <p className={styles.subtitle}>Plataforma de Atendimento</p>
+            {error && (
+              <div className={styles.error}>{error}</div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className={styles.button}
+            >
+              {loading ? 'Verificando...' : 'Entrar'}
+            </button>
+          </form>
+
+          <p className={styles.footer}>PHchat &mdash; Plataforma de Atendimento</p>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
