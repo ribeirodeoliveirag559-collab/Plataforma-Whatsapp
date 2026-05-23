@@ -3,6 +3,41 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 
+interface Tracer {
+  x: number
+  y: number
+  speed: number
+  angle: number
+  life: number
+  maxLife: number
+  hue: number
+}
+
+function createTracer(w: number, h: number): Tracer {
+  return {
+    x: Math.random() * w,
+    y: Math.random() * h,
+    speed: 1.5 + Math.random(),
+    angle: Math.floor(Math.random() * 4) * (Math.PI / 2),
+    life: 0,
+    maxLife: 100 + Math.random() * 200,
+    hue: 200 + Math.random() * 60,
+  }
+}
+
+function updateTracer(t: Tracer, w: number, h: number): Tracer {
+  const nx = t.x + Math.cos(t.angle) * t.speed
+  const ny = t.y + Math.sin(t.angle) * t.speed
+  const nLife = t.life + 1
+  const outOfBounds = nx < 0 || nx > w || ny < 0 || ny > h || nLife > t.maxLife
+  if (outOfBounds) return createTracer(w, h)
+  const nAngle =
+    Math.random() < 0.04
+      ? t.angle + (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2)
+      : t.angle
+  return { ...t, x: nx, y: ny, angle: nAngle, life: nLife }
+}
+
 function CircuitBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -12,99 +47,52 @@ function CircuitBackground() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    let animationId: number
-    let width = 0
-    let height = 0
-
-    class Tracer {
-      x: number = 0
-      y: number = 0
-      speed: number = 0
-      angle: number = 0
-      life: number = 0
-      maxLife: number = 0
-      hue: number = 0
-
-      constructor() {
-        this.reset()
-      }
-
-      reset() {
-        this.x = Math.random() * width
-        this.y = Math.random() * height
-        this.speed = 1.5 + Math.random()
-        this.angle = Math.floor(Math.random() * 4) * (Math.PI / 2)
-        this.life = 0
-        this.maxLife = 100 + Math.random() * 200
-        this.hue = 200 + Math.random() * 60
-      }
-
-      update() {
-        this.x += Math.cos(this.angle) * this.speed
-        this.y += Math.sin(this.angle) * this.speed
-        this.life++
-
-        if (Math.random() < 0.04) {
-          this.angle += (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2)
-        }
-
-        if (
-          this.x < 0 || this.x > width ||
-          this.y < 0 || this.y > height ||
-          this.life > this.maxLife
-        ) {
-          this.reset()
-        }
-      }
-
-      draw(ctx: CanvasRenderingContext2D) {
-        ctx.beginPath()
-        ctx.arc(this.x, this.y, 1.5, 0, Math.PI * 2)
-        ctx.fillStyle = `hsla(${this.hue}, 90%, 80%, 1)`
-        ctx.fill()
-      }
-    }
-
+    let animationId = 0
     let tracers: Tracer[] = []
+    let w = 0
+    let h = 0
 
-    function setSize() {
-      width = canvas!.width = window.innerWidth
-      height = canvas!.height = window.innerHeight
+    const resize = () => {
+      w = canvas.width = window.innerWidth
+      h = canvas.height = window.innerHeight
+      tracers = Array.from({ length: 40 }, () => createTracer(w, h))
     }
 
-    function init() {
-      setSize()
-      tracers = []
-      for (let i = 0; i < 40; i++) {
-        tracers.push(new Tracer())
-      }
-    }
-
-    function animate() {
-      ctx!.fillStyle = 'rgba(5, 5, 16, 0.05)'
-      ctx!.fillRect(0, 0, width, height)
-      tracers.forEach(t => {
-        t.update()
-        t.draw(ctx!)
+    const animate = () => {
+      ctx.fillStyle = 'rgba(5, 5, 16, 0.05)'
+      ctx.fillRect(0, 0, w, h)
+      tracers = tracers.map(t => {
+        const next = updateTracer(t, w, h)
+        ctx.beginPath()
+        ctx.arc(next.x, next.y, 1.5, 0, Math.PI * 2)
+        ctx.fillStyle = `hsla(${next.hue}, 90%, 80%, 1)`
+        ctx.fill()
+        return next
       })
       animationId = requestAnimationFrame(animate)
     }
 
-    window.addEventListener('resize', init)
-    init()
+    window.addEventListener('resize', resize)
+    resize()
     animate()
 
     return () => {
       cancelAnimationFrame(animationId)
-      window.removeEventListener('resize', init)
+      window.removeEventListener('resize', resize)
     }
   }, [])
 
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 w-full h-full"
-      style={{ background: '#050510' }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        background: '#050510',
+        zIndex: 0,
+      }}
     />
   )
 }
@@ -124,7 +112,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(form),
       })
 
       const data = await res.json()
@@ -145,12 +133,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative">
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
       {/* Fundo animado de circuitos digitais */}
       <CircuitBackground />
 
       {/* Card de login — por cima da animação */}
-      <div className="relative z-10 w-full max-w-sm px-4">
+      <div style={{ position: 'relative', zIndex: 10, width: '100%', maxWidth: '384px', padding: '0 16px' }}>
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4 shadow-lg shadow-indigo-500/30">
@@ -164,7 +152,7 @@ export default function LoginPage() {
         <form
           onSubmit={handleSubmit}
           className="rounded-2xl p-8 shadow-2xl space-y-4 border border-white/10"
-          style={{ background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(12px)' }}
+          style={{ background: 'rgba(15, 23, 42, 0.80)', backdropFilter: 'blur(12px)' }}
         >
           <div>
             <label className="block text-slate-300 text-sm font-medium mb-1">Usuário</label>
