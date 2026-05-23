@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { getTokenFromRequest, verifyToken } from '@/lib/auth'
+import { getTokenFromRequest } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {
-  const token = getTokenFromRequest(req)
-  if (!token) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-  const payload = verifyToken(token) as { id: number; isManager?: boolean } | null
-  if (!payload) return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
+  const payload = getTokenFromRequest(req)
+  if (!payload) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
   const status  = searchParams.get('status')?.toUpperCase()
-  const showAll = searchParams.get('showAll') === 'true'   // toggle "ver todas"
+  const showAll = searchParams.get('showAll') === 'true'
   const page    = Number(searchParams.get('pageNumber') || 1)
   const pageSize = 20
   const skip     = (page - 1) * pageSize
+
+  // Busca dados do usuário (isManager não está no JWT)
+  const dbUser = await prisma.user.findUnique({
+    where:  { id: payload.id },
+    select: { isManager: true },
+  })
+  const isManager = dbUser?.isManager ?? false
 
   // Filas do usuário logado
   const userQueues = await prisma.userQueue.findMany({
@@ -25,32 +30,27 @@ export async function GET(req: NextRequest) {
   let where: Record<string, unknown> = {}
 
   if (status === 'PENDING') {
-    // Pendentes: tickets das filas do usuário (ou todos se sem fila atribuída)
-    where = {
-      status: 'PENDING',
-      OR: [
-        ...(userQueueIds.length > 0 ? [{ queueId: { in: userQueueIds } }] : []),
-        { queueId: null },   // sem fila: visível para todos
-      ],
-    }
-    // Gestores veem tudo
-    if (payload.isManager || userQueueIds.length === 0) {
+    if (isManager || userQueueIds.length === 0) {
+      // Gestores e usuários sem fila veem tudo
       where = { status: 'PENDING' }
+    } else {
+      // Filtra pelas filas do usuário
+      where = {
+        status: 'PENDING',
+        OR: [
+          { queueId: { in: userQueueIds } },
+          { queueId: null },
+        ],
+      }
     }
   } else if (status === 'OPEN') {
-    if (showAll || payload.isManager) {
-      // Ver todas as conversas abertas
-      where = { status: 'OPEN' }
-    } else {
-      // Só minhas conversas
-      where = { status: 'OPEN', userId: payload.id }
-    }
+    where = (showAll || isManager)
+      ? { status: 'OPEN' }
+      : { status: 'OPEN', userId: payload.id }
   } else if (status === 'CLOSED') {
-    where = { status: 'CLOSED' }
-    // Não-gestores veem só as suas
-    if (!payload.isManager && !showAll) {
-      where = { status: 'CLOSED', userId: payload.id }
-    }
+    where = (showAll || isManager)
+      ? { status: 'CLOSED' }
+      : { status: 'CLOSED', userId: payload.id }
   } else if (status) {
     where = { status }
   }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { getTokenFromRequest, verifyToken } from '@/lib/auth'
+import { getTokenFromRequest } from '@/lib/auth'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -28,10 +28,8 @@ export async function GET(req: NextRequest, { params }: Params) {
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
-  const token = getTokenFromRequest(req)
-  if (!token) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-  const payload = verifyToken(token) as { id: number } | null
-  if (!payload) return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
+  const payload = getTokenFromRequest(req)
+  if (!payload) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
   const { id } = await params
   const { body } = await req.json()
@@ -49,7 +47,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     include: { sender: { select: { id: true, name: true } } },
   })
 
-  // Atualiza lastMessage do ticket
   await prisma.ticket.update({
     where: { id: Number(id) },
     data:  { lastMessage: body, updatedAt: new Date() },
