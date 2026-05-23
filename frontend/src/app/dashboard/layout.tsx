@@ -60,15 +60,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Logo */}
         <div className="px-3 lg:px-4 mb-8">
+          {/* Versão expandida (lg+) */}
           <div className="hidden lg:flex items-center justify-center">
-            <div className="bg-white rounded-2xl px-3 py-2">
-              <img src={LOGO_BASE64} alt="PH Informática" style={{ height: '52px', width: 'auto' }} />
-            </div>
+            <img
+              src={LOGO_BASE64}
+              alt="PHchat"
+              className="transition-all duration-300 hover:scale-110 hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.5)]"
+              style={{ height: '72px', width: 'auto', filter: 'brightness(0) invert(1)' }}
+            />
           </div>
+          {/* Versão colapsada (mobile) */}
           <div className="flex lg:hidden items-center justify-center">
-            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
-              <img src={LOGO_BASE64} alt="PH" style={{ height: '32px', width: '32px', objectFit: 'contain' }} />
-            </div>
+            <img
+              src={LOGO_BASE64}
+              alt="PHchat"
+              className="transition-all duration-300 hover:scale-110 hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"
+              style={{ height: '36px', width: '36px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+            />
           </div>
         </div>
 
