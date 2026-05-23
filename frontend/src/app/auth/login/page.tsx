@@ -199,7 +199,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className={styles.footer}>PHchat &mdash; Plataforma de Atendimento</p>
         </div>
       </div>
     </>
