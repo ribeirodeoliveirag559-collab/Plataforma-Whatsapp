@@ -1,164 +1,485 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Clock, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import {
+  Clock, CheckCircle, MessageSquare, RefreshCw, Send,
+  UserCheck, X, ChevronRight, Building2, Phone, Bot, ArrowLeftRight,
+} from 'lucide-react'
 
 type TicketStatus = 'PENDING' | 'OPEN' | 'CLOSED'
 
-interface Ticket {
-  id: number
-  status: TicketStatus
-  lastMessage: string | null
-  unreadMessages: number
-  contact: { id: number; name: string; number: string; profilePicUrl: string | null }
-  queue: { id: number; name: string; color: string } | null
-  user: { id: number; name: string; avatar: string | null } | null
-  updatedAt: string
+interface Contact { id: number; name: string; number: string; profilePicUrl: string | null; company?: string | null }
+interface Queue   { id: number; name: string; color: string }
+interface User    { id: number; name: string; avatar: string | null }
+interface Ticket  {
+  id: number; status: TicketStatus; lastMessage: string | null
+  unreadMessages: number; aiSummary: string | null
+  contact: Contact; queue: Queue | null; user: User | null
+  updatedAt: string; createdAt: string
+}
+interface Message {
+  id: number; body: string | null; fromMe: boolean
+  mediaType: string; createdAt: string
+  sender: { id: number; name: string } | null
 }
 
-const statusConfig = {
-  PENDING: { label: 'Pendente', color: 'text-amber-500', bg: 'bg-amber-50 border-amber-200', icon: Clock },
-  OPEN: { label: 'Em atendimento', color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-200', icon: AlertCircle },
-  CLOSED: { label: 'Encerrado', color: 'text-slate-400', bg: 'bg-slate-50 border-slate-200', icon: CheckCircle },
+const STATUS_TABS: { key: TicketStatus; label: string; icon: React.ElementType; color: string }[] = [
+  { key: 'PENDING', label: 'Pendentes',      icon: Clock,         color: 'text-amber-500' },
+  { key: 'OPEN',    label: 'Em Atendimento', icon: MessageSquare, color: 'text-indigo-600' },
+  { key: 'CLOSED',  label: 'Encerrados',     icon: CheckCircle,   color: 'text-slate-400' },
+]
+
+function avatar(name: string, number: string) {
+  return name
+    ? name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : number.slice(-2)
 }
 
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1)   return 'agora'
+  if (m < 60)  return `${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24)  return `${h}h`
+  return `${Math.floor(h / 24)}d`
+}
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+// ─────────────────────────────────────────────────────
 export default function AtendimentosPage() {
-  const [tickets, setTickets] = useState<Ticket[]>([])
-  const [loading, setLoading] = useState(true)
-  const [activeStatus, setActiveStatus] = useState<TicketStatus>('OPEN')
+  const [tab, setTab]             = useState<TicketStatus>('PENDING')
+  const [tickets, setTickets]     = useState<Ticket[]>([])
+  const [selected, setSelected]   = useState<Ticket | null>(null)
+  const [loadingList, setLoadingList] = useState(true)
+  const [queues, setQueues]       = useState<Queue[]>([])
 
-  const fetchTickets = async (status: TicketStatus) => {
-    setLoading(true)
+  const token = () => localStorage.getItem('token') ?? ''
+
+  const fetchTickets = useCallback(async (status: TicketStatus) => {
+    setLoadingList(true)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(
-        `/api/tickets?status=${status}&pageNumber=1`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      const data = await res.json()
-      setTickets(data.tickets || [])
-    } catch {
-      console.error('Erro ao carregar tickets')
+      const r = await fetch(`/api/tickets?status=${status}&pageNumber=1`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      })
+      const d = await r.json()
+      setTickets(d.tickets ?? [])
     } finally {
-      setLoading(false)
+      setLoadingList(false)
     }
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/admin/queues', { headers: { Authorization: `Bearer ${token()}` } })
+      .then(r => r.json()).then(d => setQueues(Array.isArray(d) ? d : []))
+  }, [])
+
+  useEffect(() => { fetchTickets(tab); setSelected(null) }, [tab, fetchTickets])
+
+  // Atualiza ticket na lista após ação
+  const refreshAfterAction = (updated: Ticket) => {
+    setTickets(prev => prev.filter(t => t.id !== updated.id))
+    setSelected(null)
   }
 
-  useEffect(() => { fetchTickets(activeStatus) }, [activeStatus])
+  return (
+    <div className="flex h-full overflow-hidden">
+
+      {/* ── Painel esquerdo: lista ── */}
+      <aside className="w-80 xl:w-96 shrink-0 flex flex-col border-r border-slate-200 bg-white">
+        {/* Header */}
+        <div className="px-4 pt-5 pb-3 border-b border-slate-100">
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-lg font-bold text-slate-800">Atendimentos</h1>
+            <button
+              onClick={() => fetchTickets(tab)}
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+            >
+              <RefreshCw size={15} />
+            </button>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-1">
+            {STATUS_TABS.map(({ key, label, icon: Icon, color }) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  tab === key
+                    ? 'bg-slate-100 ' + color
+                    : 'text-slate-400 hover:bg-slate-50'
+                }`}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Contagem */}
+        <div className="px-4 py-2 text-xs text-slate-400">
+          {loadingList ? 'Carregando...' : `${tickets.length} atendimento${tickets.length !== 1 ? 's' : ''}`}
+        </div>
+
+        {/* Lista */}
+        <div className="flex-1 overflow-y-auto">
+          {loadingList ? (
+            <div className="flex justify-center py-16">
+              <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : tickets.length === 0 ? (
+            <div className="text-center py-16 text-slate-400 text-sm">Nenhum atendimento</div>
+          ) : (
+            tickets.map(ticket => (
+              <TicketRow
+                key={ticket.id}
+                ticket={ticket}
+                active={selected?.id === ticket.id}
+                onClick={() => setSelected(ticket)}
+              />
+            ))
+          )}
+        </div>
+      </aside>
+
+      {/* ── Painel direito: chat ── */}
+      <main className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+        {selected ? (
+          <ChatPanel
+            ticket={selected}
+            queues={queues}
+            token={token()}
+            onClose={() => setSelected(null)}
+            onAction={refreshAfterAction}
+          />
+        ) : (
+          <EmptyState />
+        )}
+      </main>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────
+function TicketRow({ ticket, active, onClick }: { ticket: Ticket; active: boolean; onClick: () => void }) {
+  const ini = avatar(ticket.contact.name, ticket.contact.number)
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Atendimentos</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Gerencie os atendimentos WhatsApp</p>
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-4 py-3.5 border-b border-slate-100 flex items-start gap-3 transition-colors ${
+        active ? 'bg-indigo-50' : 'hover:bg-slate-50'
+      }`}
+    >
+      {/* Avatar */}
+      <div className="relative shrink-0">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+          active ? 'bg-indigo-200 text-indigo-700' : 'bg-slate-200 text-slate-600'
+        }`}>
+          {ini}
         </div>
-        <button
-          onClick={() => fetchTickets(activeStatus)}
-          className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors text-sm"
-        >
-          <RefreshCw size={15} />
-          Atualizar
-        </button>
+        {ticket.status === 'PENDING' && (
+          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-amber-400 rounded-full border-2 border-white" />
+        )}
       </div>
 
-      {/* Tabs de status */}
-      <div className="flex gap-2 mb-6">
-        {(['OPEN', 'PENDING', 'CLOSED'] as TicketStatus[]).map(status => {
-          const cfg = statusConfig[status]
-          return (
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-1">
+          <span className="font-semibold text-slate-800 text-sm truncate">
+            {ticket.contact.name || ticket.contact.number}
+          </span>
+          <span className="text-xs text-slate-400 shrink-0">{timeAgo(ticket.updatedAt)}</span>
+        </div>
+
+        {/* Departamento */}
+        {ticket.queue && (
+          <span
+            className="inline-block text-xs px-1.5 py-0.5 rounded-full mt-0.5 font-medium"
+            style={{ background: ticket.queue.color + '20', color: ticket.queue.color }}
+          >
+            {ticket.queue.name}
+          </span>
+        )}
+
+        {/* Resumo IA ou última mensagem */}
+        {ticket.aiSummary ? (
+          <p className="text-xs text-slate-500 truncate mt-0.5 flex items-center gap-1">
+            <Bot size={10} className="shrink-0 text-indigo-400" />
+            {ticket.aiSummary}
+          </p>
+        ) : ticket.lastMessage ? (
+          <p className="text-xs text-slate-400 truncate mt-0.5">{ticket.lastMessage}</p>
+        ) : null}
+      </div>
+
+      {/* Badge não lidas */}
+      {ticket.unreadMessages > 0 && (
+        <span className="shrink-0 mt-1 w-5 h-5 bg-indigo-600 text-white text-xs rounded-full flex items-center justify-center">
+          {ticket.unreadMessages}
+        </span>
+      )}
+
+      <ChevronRight size={14} className="shrink-0 self-center text-slate-300" />
+    </button>
+  )
+}
+
+// ─────────────────────────────────────────────────────
+function ChatPanel({
+  ticket, queues, token, onClose, onAction,
+}: {
+  ticket: Ticket; queues: Queue[]; token: string
+  onClose: () => void; onAction: (t: Ticket) => void
+}) {
+  const [messages, setMessages]   = useState<Message[]>([])
+  const [loadingMsgs, setLoadingMsgs] = useState(true)
+  const [text, setText]           = useState('')
+  const [sending, setSending]     = useState(false)
+  const [actioning, setActioning] = useState(false)
+  const [showTransfer, setShowTransfer] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  const fetchMessages = useCallback(async () => {
+    setLoadingMsgs(true)
+    const r = await fetch(`/api/tickets/${ticket.id}/messages`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const d = await r.json()
+    setMessages(Array.isArray(d) ? d : [])
+    setLoadingMsgs(false)
+  }, [ticket.id, token])
+
+  useEffect(() => { fetchMessages() }, [fetchMessages])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  const sendMessage = async () => {
+    if (!text.trim() || sending) return
+    setSending(true)
+    const r = await fetch(`/api/tickets/${ticket.id}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: text.trim() }),
+    })
+    if (r.ok) {
+      const msg = await r.json()
+      setMessages(prev => [...prev, msg])
+      setText('')
+    }
+    setSending(false)
+  }
+
+  const updateStatus = async (status: TicketStatus) => {
+    setActioning(true)
+    const user = JSON.parse(localStorage.getItem('user') ?? '{}')
+    const r = await fetch(`/api/tickets/${ticket.id}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, userId: status === 'OPEN' ? user.id : undefined }),
+    })
+    if (r.ok) { const t = await r.json(); onAction(t) }
+    setActioning(false)
+  }
+
+  const transferQueue = async (queueId: number) => {
+    setActioning(true)
+    const r = await fetch(`/api/tickets/${ticket.id}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queueId }),
+    })
+    if (r.ok) { const t = await r.json(); onAction(t) }
+    setActioning(false); setShowTransfer(false)
+  }
+
+  const ini = avatar(ticket.contact.name, ticket.contact.number)
+
+  return (
+    <div className="flex flex-col h-full">
+
+      {/* ── Header do chat ── */}
+      <header className="bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3">
+        <div className="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center text-sm font-bold text-indigo-600 shrink-0">
+          {ini}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-slate-800 text-sm truncate">
+            {ticket.contact.name || ticket.contact.number}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <Phone size={10} />
+            {ticket.contact.number}
+            {ticket.contact.company && (
+              <><Building2 size={10} />{ticket.contact.company}</>
+            )}
+          </div>
+        </div>
+
+        {/* Badge departamento */}
+        {ticket.queue && (
+          <span
+            className="text-xs px-2.5 py-1 rounded-full font-medium shrink-0"
+            style={{ background: ticket.queue.color + '20', color: ticket.queue.color }}
+          >
+            {ticket.queue.name}
+          </span>
+        )}
+
+        {/* Ações */}
+        <div className="flex items-center gap-2 shrink-0">
+          {ticket.status === 'PENDING' && (
             <button
-              key={status}
-              onClick={() => setActiveStatus(status)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
-                activeStatus === status
-                  ? cfg.bg + ' ' + cfg.color + ' border-current'
-                  : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-              }`}
+              onClick={() => updateStatus('OPEN')}
+              disabled={actioning}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
             >
-              {cfg.label}
+              <UserCheck size={13} /> Aceitar
             </button>
-          )
-        })}
+          )}
+          {ticket.status === 'OPEN' && (
+            <>
+              <button
+                onClick={() => setShowTransfer(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg transition-colors"
+              >
+                <ArrowLeftRight size={13} /> Transferir
+              </button>
+              <button
+                onClick={() => updateStatus('CLOSED')}
+                disabled={actioning}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+              >
+                <X size={13} /> Encerrar
+              </button>
+            </>
+          )}
+        </div>
+        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 ml-1">
+          <X size={16} />
+        </button>
+      </header>
+
+      {/* ── Dropdown transferir ── */}
+      {showTransfer && (
+        <div className="bg-white border-b border-slate-200 px-5 py-3">
+          <p className="text-xs text-slate-500 mb-2 font-medium">Transferir para:</p>
+          <div className="flex flex-wrap gap-2">
+            {queues.filter(q => q.id !== ticket.queue?.id).map(q => (
+              <button
+                key={q.id}
+                onClick={() => transferQueue(q.id)}
+                disabled={actioning}
+                className="text-xs px-3 py-1.5 rounded-full border font-medium transition-colors hover:opacity-80"
+                style={{ borderColor: q.color, color: q.color, background: q.color + '15' }}
+              >
+                {q.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Resumo IA (se existir) ── */}
+      {ticket.aiSummary && (
+        <div className="mx-4 mt-3 mb-1 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-2.5 flex items-start gap-2">
+          <Bot size={15} className="text-indigo-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-indigo-700 mb-0.5">Resumo da IA</p>
+            <p className="text-xs text-indigo-600 leading-relaxed">{ticket.aiSummary}</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mensagens ── */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
+        {loadingMsgs ? (
+          <div className="flex justify-center py-16">
+            <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="text-center py-16 text-slate-400 text-sm">Nenhuma mensagem ainda</div>
+        ) : (
+          messages.map((msg, i) => {
+            const prev = messages[i - 1]
+            const showDate = !prev || new Date(msg.createdAt).toDateString() !== new Date(prev.createdAt).toDateString()
+            return (
+              <div key={msg.id}>
+                {showDate && (
+                  <div className="flex items-center justify-center my-3">
+                    <span className="bg-slate-200 text-slate-500 text-xs px-3 py-0.5 rounded-full">
+                      {new Date(msg.createdAt).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </span>
+                  </div>
+                )}
+                <div className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} mb-0.5`}>
+                  <div
+                    className={`max-w-[72%] px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${
+                      msg.fromMe
+                        ? 'bg-indigo-600 text-white rounded-br-sm'
+                        : 'bg-white text-slate-800 rounded-bl-sm shadow-sm border border-slate-100'
+                    }`}
+                  >
+                    {!msg.fromMe && msg.sender && (
+                      <p className="text-xs font-semibold text-indigo-500 mb-0.5">{msg.sender.name}</p>
+                    )}
+                    <p>{msg.body}</p>
+                    <p className={`text-xs mt-1 text-right ${msg.fromMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                      {fmtTime(msg.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
+        <div ref={bottomRef} />
       </div>
 
-      {/* Lista de tickets */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
+      {/* ── Input de resposta ── */}
+      {ticket.status === 'OPEN' ? (
+        <div className="bg-white border-t border-slate-200 px-4 py-3 flex items-end gap-2">
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
+            placeholder="Digite sua mensagem... (Enter para enviar)"
+            rows={1}
+            className="flex-1 resize-none bg-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-h-32"
+            style={{ minHeight: '42px' }}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!text.trim() || sending}
+            className="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-colors shrink-0"
+          >
+            <Send size={16} />
+          </button>
         </div>
-      ) : tickets.length === 0 ? (
-        <div className="text-center py-20 text-slate-400">
-          <MessageIcon />
-          <p className="mt-2">Nenhum atendimento {statusConfig[activeStatus].label.toLowerCase()}</p>
+      ) : ticket.status === 'PENDING' ? (
+        <div className="bg-amber-50 border-t border-amber-100 px-4 py-3 text-center">
+          <p className="text-amber-600 text-sm font-medium">Clique em <strong>Aceitar</strong> para iniciar o atendimento</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {tickets.map(ticket => (
-            <TicketCard key={ticket.id} ticket={ticket} />
-          ))}
+        <div className="bg-slate-50 border-t border-slate-200 px-4 py-3 text-center">
+          <p className="text-slate-400 text-sm">Atendimento encerrado</p>
         </div>
       )}
     </div>
   )
 }
 
-function TicketCard({ ticket }: { ticket: Ticket }) {
-  const initials = ticket.contact.name
-    ? ticket.contact.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-    : ticket.contact.number.slice(-4)
-
+// ─────────────────────────────────────────────────────
+function EmptyState() {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow cursor-pointer">
-      <div className="flex items-start gap-3">
-        {/* Avatar */}
-        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
-          <span className="text-indigo-600 font-semibold text-sm">{initials}</span>
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold text-slate-800 truncate">
-              {ticket.contact.name || ticket.contact.number}
-            </span>
-            {ticket.unreadMessages > 0 && (
-              <span className="bg-indigo-600 text-white text-xs rounded-full px-2 py-0.5 shrink-0">
-                {ticket.unreadMessages}
-              </span>
-            )}
-          </div>
-
-          {ticket.lastMessage && (
-            <p className="text-slate-500 text-sm truncate mt-0.5">{ticket.lastMessage}</p>
-          )}
-
-          {/* Resumo IA */}
-          <div className="flex items-center gap-3 mt-2">
-            {ticket.queue && (
-              <span
-                className="text-xs px-2 py-0.5 rounded-full font-medium"
-                style={{ backgroundColor: ticket.queue.color + '20', color: ticket.queue.color }}
-              >
-                {ticket.queue.name}
-              </span>
-            )}
-            {ticket.user && (
-              <span className="text-xs text-slate-400">{ticket.user.name}</span>
-            )}
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col items-center justify-center h-full text-slate-400 select-none">
+      <MessageSquare size={48} strokeWidth={1} className="mb-3 text-slate-300" />
+      <p className="text-base font-medium">Selecione um atendimento</p>
+      <p className="text-sm mt-1">Escolha um item da lista para abrir a conversa</p>
     </div>
-  )
-}
-
-function MessageIcon() {
-  return (
-    <svg className="w-12 h-12 mx-auto text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-        d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-    </svg>
   )
 }
