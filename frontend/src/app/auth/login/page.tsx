@@ -149,7 +149,6 @@ export default function LoginPage() {
         <div className={styles.splash}>
           <div className={styles.splashRing} />
           <img src={LOGO_BASE64} alt="PHchat" className={styles.splashLogo} />
-          <p className={styles.splashText}>Plataforma de Atendimento</p>
           <div className={styles.splashBar} />
         </div>
       )}
