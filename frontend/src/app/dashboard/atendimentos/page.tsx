@@ -263,7 +263,8 @@ function ChatPanel({
     const r = await fetch(`/api/tickets/${ticket.id}/messages`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-    setMessages(Array.isArray(await r.json()) ? await r.clone().json() : [])
+    const d = await r.json()
+    setMessages(Array.isArray(d) ? d : [])
     setLoadingMsgs(false)
   }, [ticket.id, token])
 

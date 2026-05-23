@@ -1,233 +1,308 @@
-import { PrismaClient, TicketStatus } from '@prisma/client'
+/**
+ * seed-tickets.ts
+ * Limpa e recria atendimentos de teste alinhados ao novo fluxo:
+ *  - Usuários vinculados aos seus departamentos (UserQueue)
+ *  - PENDING: aguardando atendente pegar
+ *  - OPEN:    atendente já iniciou
+ *  - CLOSED:  encerrado
+ */
+import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-/* ── Contatos fictícios realistas ── */
+// ── Mapeamento usuário → departamentos ──────────────────
+const USER_QUEUES: Record<string, number[]> = {
+  gustavo: [3, 4],        // Suporte Clipp Pro + Solicitação de Serviço
+  paulo:   [1, 2],        // Vendas + Financeiro
+  laura:   [1, 2, 7],     // Vendas + Financeiro + RH
+  iara:    [1],           // Vendas
+  luiz:    [5, 6],        // Laboratório + Ordem de Serviço
+  bruno:   [3, 4, 8],     // Suporte Clipp + Solicitação + Fornecedor
+}
+
+// ── Contatos ────────────────────────────────────────────
 const CONTACTS = [
-  { name: 'João Carlos Ferreira',    number: '6499112233', company: 'Distribuidora Ferreira Ltda' },
-  { name: 'Maria Aparecida Silva',   number: '6498223344', company: 'Papelaria Criativa ME' },
-  { name: 'Roberto Alves Souza',     number: '6497334455', company: 'Auto Peças Souza' },
-  { name: 'Fernanda Lima Costa',     number: '6496445566', company: 'Clínica Odonto Sorriso' },
-  { name: 'Carlos Eduardo Martins',  number: '6495556677', company: 'Supermercado Bom Preço' },
-  { name: 'Ana Paula Rodrigues',     number: '6494667788', company: 'Escola Estadual João XXIII' },
-  { name: 'Marcelo Henrique Gomes',  number: '6493778899', company: 'Construtora Gomes & Filhos' },
-  { name: 'Patrícia Mendes Borges',  number: '6492889900', company: 'Farmácia Saúde Total' },
-  { name: 'Lucas Oliveira Nunes',    number: '6491990011', company: 'Loja Virtual Nunes' },
-  { name: 'Simone Castro Freitas',   number: '6490001122', company: 'Contabilidade Freitas' },
-  { name: 'André Luiz Pinheiro',     number: '6489112233', company: 'Padaria Pão de Mel' },
-  { name: 'Juliana Ramos Vieira',    number: '6488223344', company: 'Salão de Beleza Charme' },
-  { name: 'Ricardo Moura Teixeira',  number: '6487334455', company: 'Oficina Mecânica RT' },
-  { name: 'Camila Fonseca Araújo',   number: '6486445566', company: 'Academia Fit Life' },
-  { name: 'Wellington Santos Lima',  number: '6485556677', company: 'Transportadora Santos' },
+  { name: 'João Carlos Ferreira',   number: '6499112233', company: 'Distribuidora Ferreira Ltda'  },
+  { name: 'Maria Aparecida Silva',  number: '6498223344', company: 'Papelaria Criativa ME'         },
+  { name: 'Roberto Alves Souza',    number: '6497334455', company: 'Auto Peças Souza'              },
+  { name: 'Fernanda Lima Costa',    number: '6496445566', company: 'Clínica Odonto Sorriso'        },
+  { name: 'Carlos Eduardo Martins', number: '6495556677', company: 'Supermercado Bom Preço'        },
+  { name: 'Ana Paula Rodrigues',    number: '6494667788', company: 'Escola Estadual João XXIII'    },
+  { name: 'Marcelo Henrique Gomes', number: '6493778899', company: 'Construtora Gomes & Filhos'    },
+  { name: 'Patrícia Mendes Borges', number: '6492889900', company: 'Farmácia Saúde Total'          },
+  { name: 'Lucas Oliveira Nunes',   number: '6491990011', company: 'Loja Virtual Nunes'            },
+  { name: 'Simone Castro Freitas',  number: '6490001122', company: 'Contabilidade Freitas'         },
+  { name: 'André Luiz Pinheiro',    number: '6489112233', company: 'Padaria Pão de Mel'            },
+  { name: 'Juliana Ramos Vieira',   number: '6488223344', company: 'Salão de Beleza Charme'        },
+  { name: 'Ricardo Moura Teixeira', number: '6487334455', company: 'Oficina Mecânica RT'           },
+  { name: 'Camila Fonseca Araújo',  number: '6486445566', company: 'Academia Fit Life'             },
+  { name: 'Wellington Santos Lima', number: '6485556677', company: 'Transportadora Santos'         },
 ]
 
-/* ── Conversas simuladas por departamento ── */
-const CONVERSATIONS: {
-  queueId: number
-  status: TicketStatus
+type Msg = { body: string; fromMe: boolean; minsAgo: number }
+
+interface Conv {
+  contactIdx: number
+  queueId:    number
+  status:     'PENDING' | 'OPEN' | 'CLOSED'
+  userSlug?:  string          // atendente que assumiu (OPEN/CLOSED)
   aiSummary?: string
-  userIdx?: number
-  msgs: { body: string; fromMe: boolean; minsAgo: number }[]
-}[] = [
-  // ── Suporte ao Clipp Pro ──
+  msgs:       Msg[]
+}
+
+const CONVERSATIONS: Conv[] = [
+
+  /* ══════════ PENDENTES ══════════
+     Chegaram, IA coletou info, aguardando atendente pegar */
+
   {
-    queueId: 3, status: 'OPEN', userIdx: 0,
-    aiSummary: 'Cliente com erro ao emitir NF-e. Sistema retorna código de rejeição 539.',
+    contactIdx: 0, queueId: 3, status: 'PENDING',
+    aiSummary: 'Erro NF-e rejeição 539. CNPJ: 12.345.678/0001-99 — Distribuidora Ferreira. Certificado digital vencido.',
     msgs: [
-      { body: 'Bom dia! Estou com um problema no Clipp Pro, ao tentar emitir nota fiscal aparece um erro de rejeição 539', fromMe: false, minsAgo: 60 },
-      { body: 'Bom dia! Vou verificar aqui pra você. Pode me informar o CNPJ da empresa?', fromMe: true, minsAgo: 58 },
-      { body: '12.345.678/0001-99 — Distribuidora Ferreira', fromMe: false, minsAgo: 56 },
-      { body: 'Consultei aqui. O certificado digital A1 venceu ontem. Precisa renovar com a Certisign ou outra certificadora.', fromMe: true, minsAgo: 52 },
-      { body: 'Ah entendi! Quanto tempo demora para renovar?', fromMe: false, minsAgo: 50 },
-      { body: 'Em média 30 minutos se for feito online. Posso te passar o link da Certisign?', fromMe: true, minsAgo: 48 },
-      { body: 'Por favor!', fromMe: false, minsAgo: 47 },
-    ],
-  },
-  {
-    queueId: 3, status: 'PENDING',
-    aiSummary: 'Cliente relata lentidão no sistema Clipp Pro ao carregar relatórios.',
-    msgs: [
-      { body: 'Boa tarde! O Clipp Pro está muito lento hoje, especialmente nos relatórios de vendas', fromMe: false, minsAgo: 15 },
-    ],
-  },
-  {
-    queueId: 3, status: 'CLOSED', userIdx: 0,
-    aiSummary: 'Dúvida sobre emissão de NFS-e resolvida. Cliente orientado sobre configuração do município.',
-    msgs: [
-      { body: 'Olá! Como configuro a NFS-e para o município de Itumbiara?', fromMe: false, minsAgo: 1440 },
-      { body: 'Bom dia! Vou te ajudar. Acesse: Configurações > Fiscal > NFS-e e selecione Itumbiara-GO', fromMe: true, minsAgo: 1430 },
-      { body: 'Encontrei! Mas não aparece a série para selecionar', fromMe: false, minsAgo: 1425 },
-      { body: 'Nesse caso o município precisa estar habilitado na sua conta. Já enviei a liberação, tente novamente', fromMe: true, minsAgo: 1415 },
-      { body: 'Funcionou! Muito obrigada!', fromMe: false, minsAgo: 1410 },
-      { body: 'Que ótimo! Qualquer dúvida estaremos aqui 😊', fromMe: true, minsAgo: 1408 },
+      { body: 'Bom dia! Estou com erro ao emitir NF-e, aparece rejeição 539', fromMe: false, minsAgo: 25 },
+      { body: 'Olá! Sou a assistente virtual da PH. Pode me informar o CNPJ da empresa?', fromMe: true, minsAgo: 24 },
+      { body: '12.345.678/0001-99 — Distribuidora Ferreira', fromMe: false, minsAgo: 22 },
+      { body: 'Obrigada! E qual é o defeito exato que está aparecendo?', fromMe: true, minsAgo: 21 },
+      { body: 'Erro 539 — certificado digital inválido ou vencido', fromMe: false, minsAgo: 20 },
+      { body: 'Entendido! Vou encaminhar para o Suporte Clipp. Um atendente irá te ajudar em breve!', fromMe: true, minsAgo: 19 },
     ],
   },
 
-  // ── Solicitação de Serviço ──
   {
-    queueId: 4, status: 'OPEN', userIdx: 2,
-    aiSummary: 'Solicitação de serviço técnico em impressora HP que não imprime. Agendado para amanhã.',
+    contactIdx: 1, queueId: 3, status: 'PENDING',
+    aiSummary: 'Lentidão no Clipp Pro ao abrir relatórios. CNPJ: 98.765.432/0001-11 — Papelaria Criativa. Solicitante: Maria.',
     msgs: [
-      { body: 'Oi, minha impressora HP parou de imprimir, aparece erro de cartucho mas os cartuchos são novos', fromMe: false, minsAgo: 120 },
-      { body: 'Entendido! Pode ser problema de cabeçote ou firmware. Qual modelo da impressora?', fromMe: true, minsAgo: 118 },
-      { body: 'HP Deskjet 2774', fromMe: false, minsAgo: 115 },
-      { body: 'Vou abrir uma OS para vocês. Preferem trazer na loja ou visita técnica?', fromMe: true, minsAgo: 110 },
-      { body: 'Visita técnica, pois é pesada. Fica na Av. Beira Rio, 320', fromMe: false, minsAgo: 105 },
-      { body: 'OS #2847 aberta! Agendei o técnico para amanhã entre 14h-17h. Confirma?', fromMe: true, minsAgo: 100 },
-      { body: 'Perfeito! Obrigado', fromMe: false, minsAgo: 98 },
-    ],
-  },
-  {
-    queueId: 4, status: 'PENDING',
-    aiSummary: 'Cliente solicita formatação de notebook e instalação de programas.',
-    msgs: [
-      { body: 'Bom dia! Quero formatar meu notebook e instalar o pacote Office e antivírus. Quanto fica?', fromMe: false, minsAgo: 30 },
+      { body: 'Boa tarde! O sistema está muito lento hoje nos relatórios', fromMe: false, minsAgo: 10 },
+      { body: 'Olá Maria! Pode me informar o CNPJ da empresa?', fromMe: true, minsAgo: 9 },
+      { body: '98.765.432/0001-11 — Papelaria Criativa ME', fromMe: false, minsAgo: 8 },
+      { body: 'Qual módulo está com lentidão?', fromMe: true, minsAgo: 7 },
+      { body: 'Relatórios de vendas e o financeiro', fromMe: false, minsAgo: 6 },
+      { body: 'Anotado! Encaminhando para o Suporte Clipp Pro agora.', fromMe: true, minsAgo: 5 },
     ],
   },
 
-  // ── Vendas ──
   {
-    queueId: 1, status: 'OPEN', userIdx: 3,
-    aiSummary: 'Cliente interessado na compra de 3 computadores para escritório. Aguardando orçamento.',
+    contactIdx: 3, queueId: 4, status: 'PENDING',
+    aiSummary: 'Solicitação de visita técnica. Impressora HP Deskjet 2774 sem imprimir. Endereço: Av. Beira Rio, 320.',
     msgs: [
-      { body: 'Boa tarde! Preciso de um orçamento para 3 computadores para escritório', fromMe: false, minsAgo: 90 },
-      { body: 'Boa tarde! Com prazer! Para qual finalidade serão usados? Financeiro, atendimento...?', fromMe: true, minsAgo: 88 },
-      { body: 'Financeiro e secretaria. Nada muito pesado, só Office e sistema ERP', fromMe: false, minsAgo: 85 },
-      { body: 'Perfeito! Tenho uma ótima opção: Intel Core i5, 16GB RAM, SSD 480GB, Windows 11 por R$ 2.890 cada', fromMe: true, minsAgo: 80 },
-      { body: 'E tem alguma com monitor incluso?', fromMe: false, minsAgo: 78 },
-      { body: 'Sim! Com monitor 21" LED Full HD fica R$ 3.450 por unidade. Para 3 unidades faço 5% de desconto', fromMe: true, minsAgo: 75 },
-      { body: 'Ótimo! Pode me mandar o orçamento formal por email?', fromMe: false, minsAgo: 70 },
-    ],
-  },
-  {
-    queueId: 1, status: 'CLOSED', userIdx: 3,
-    aiSummary: 'Venda concluída. Cliente adquiriu 1 notebook Lenovo IdeaPad. Entrega realizada.',
-    msgs: [
-      { body: 'Olá! Vocês têm notebook para estudante? Algo em torno de R$ 2.000?', fromMe: false, minsAgo: 2880 },
-      { body: 'Temos sim! Lenovo IdeaPad 3, i3, 8GB, SSD 256GB por R$ 1.990', fromMe: true, minsAgo: 2875 },
-      { body: 'Tem em estoque?', fromMe: false, minsAgo: 2870 },
-      { body: 'Temos 2 unidades. Aceita cartão em até 10x sem juros!', fromMe: true, minsAgo: 2865 },
-      { body: 'Vou comprar! Posso passar hoje à tarde?', fromMe: false, minsAgo: 2860 },
-      { body: 'Pode sim! Estamos até as 18h. Te esperamos 😊', fromMe: true, minsAgo: 2858 },
-    ],
-  },
-  {
-    queueId: 1, status: 'PENDING',
-    aiSummary: 'Cliente pergunta sobre disponibilidade de HD externo 2TB.',
-    msgs: [
-      { body: 'Vocês vendem HD externo 2TB? Tem preço?', fromMe: false, minsAgo: 5 },
+      { body: 'Oi, minha impressora HP parou de imprimir, aparece erro de cartucho', fromMe: false, minsAgo: 18 },
+      { body: 'Olá! Qual é o modelo da impressora?', fromMe: true, minsAgo: 17 },
+      { body: 'HP Deskjet 2774', fromMe: false, minsAgo: 16 },
+      { body: 'Prefere trazer na loja ou visita técnica?', fromMe: true, minsAgo: 15 },
+      { body: 'Visita técnica, é pesada. Fica na Av. Beira Rio, 320', fromMe: false, minsAgo: 14 },
+      { body: 'Certo! Encaminhando para Solicitação de Serviço. Aguarde um atendente!', fromMe: true, minsAgo: 13 },
     ],
   },
 
-  // ── Laboratório (Assistência Técnica) ──
   {
-    queueId: 5, status: 'OPEN', userIdx: 4,
-    aiSummary: 'Notebook com tela quebrada. Equipamento no laboratório aguardando peça.',
+    contactIdx: 5, queueId: 1, status: 'PENDING',
+    aiSummary: 'Orçamento para 3 computadores escritório. Uso: financeiro e secretaria. Sem necessidade de placa gráfica.',
     msgs: [
-      { body: 'Oi! Deixei um notebook semana passada com a tela quebrada. Qual o status?', fromMe: false, minsAgo: 200 },
-      { body: 'Bom dia! Deixa eu verificar pelo número de série. Pode me informar?', fromMe: true, minsAgo: 195 },
-      { body: 'SN: 5CD1234XYZ', fromMe: false, minsAgo: 190 },
-      { body: 'Encontrei! O equipamento está no laboratório. A peça chegou hoje, previsão de conclusão amanhã até o meio dia.', fromMe: true, minsAgo: 185 },
-      { body: 'Ótimo! E o valor continua R$ 380 que foi orçado?', fromMe: false, minsAgo: 183 },
-      { body: 'Isso mesmo! Valor aprovado conforme orçamento.', fromMe: true, minsAgo: 180 },
-    ],
-  },
-  {
-    queueId: 5, status: 'PENDING',
-    aiSummary: 'Cliente relata computador que não liga. Provável problema na fonte de alimentação.',
-    msgs: [
-      { body: 'Meu computador não está ligando, apertei o botão e não acontece nada, nem a luz acende', fromMe: false, minsAgo: 8 },
-    ],
-  },
-  {
-    queueId: 5, status: 'CLOSED', userIdx: 4,
-    aiSummary: 'Celular com tela quebrada. Reparo concluído e entregue ao cliente.',
-    msgs: [
-      { body: 'Bom dia! Quero saber se meu celular já ficou pronto. Samsung A54', fromMe: false, minsAgo: 4320 },
-      { body: 'Bom dia! Verificando... A troca de tela foi concluída ontem! Pode vir retirar.', fromMe: true, minsAgo: 4315 },
-      { body: 'Que ótimo!! Posso ir agora de manhã?', fromMe: false, minsAgo: 4310 },
-      { body: 'Pode sim! Estamos abertos das 8h às 18h de segunda a sexta.', fromMe: true, minsAgo: 4308 },
-      { body: 'Já peguei! Ficou perfeito, obrigada!', fromMe: false, minsAgo: 4200 },
+      { body: 'Boa tarde! Preciso de orçamento para 3 computadores para escritório', fromMe: false, minsAgo: 12 },
+      { body: 'Boa tarde! Para qual finalidade serão usados?', fromMe: true, minsAgo: 11 },
+      { body: 'Financeiro e secretaria, só Office e sistema ERP mesmo', fromMe: false, minsAgo: 10 },
+      { body: 'Precisa de monitor junto?', fromMe: true, minsAgo: 9 },
+      { body: 'Sim, com monitor mesmo', fromMe: false, minsAgo: 8 },
+      { body: 'Perfeito! Encaminhando para nossa equipe de Vendas!', fromMe: true, minsAgo: 7 },
     ],
   },
 
-  // ── Financeiro ──
   {
-    queueId: 2, status: 'OPEN', userIdx: 1,
-    aiSummary: 'Cliente questiona cobrança indevida na fatura. Aguardando análise do setor.',
+    contactIdx: 8, queueId: 5, status: 'PENDING',
+    aiSummary: 'Notebook com tela quebrada. SN: 5CD1234XYZ. Cliente: Lucas Oliveira / Loja Virtual Nunes.',
     msgs: [
-      { body: 'Bom dia! Recebi uma cobrança que não reconheço na minha fatura do mês passado', fromMe: false, minsAgo: 300 },
-      { body: 'Bom dia! Pode me informar o nome da empresa e o valor cobrado?', fromMe: true, minsAgo: 295 },
-      { body: 'Supermercado Bom Preço, CNPJ 45.678.901/0001-23, cobrança de R$ 189,90', fromMe: false, minsAgo: 290 },
-      { body: 'Vou analisar o contrato e verificar. Pode aguardar?', fromMe: true, minsAgo: 285 },
-      { body: 'Sim, fico aguardando', fromMe: false, minsAgo: 284 },
-    ],
-  },
-  {
-    queueId: 2, status: 'PENDING',
-    aiSummary: 'Solicitação de segunda via de boleto para mensalidade do sistema.',
-    msgs: [
-      { body: 'Preciso de segunda via do boleto de maio, vencimento dia 10', fromMe: false, minsAgo: 22 },
+      { body: 'Boa tarde! Quero trazer meu notebook com tela quebrada', fromMe: false, minsAgo: 30 },
+      { body: 'Pode sim! Qual a marca e modelo?', fromMe: true, minsAgo: 29 },
+      { body: 'Dell Inspiron 15, SN: 5CD1234XYZ', fromMe: false, minsAgo: 28 },
+      { body: 'Qual o problema exato?', fromMe: true, minsAgo: 27 },
+      { body: 'Tela rachada, aparece manchas e não exibe imagem correta', fromMe: false, minsAgo: 26 },
+      { body: 'Entendido! Encaminhando para o Laboratório. Traga o equipamento até nós!', fromMe: true, minsAgo: 25 },
     ],
   },
 
-  // ── Ordem de Serviço ──
   {
-    queueId: 6, status: 'OPEN', userIdx: 2,
-    aiSummary: 'Cliente acompanha OS #3012 — instalação de rede no escritório novo.',
+    contactIdx: 11, queueId: 2, status: 'PENDING',
+    aiSummary: 'Segunda via boleto maio. Vencimento dia 10. Empresa: Salão de Beleza Charme.',
     msgs: [
-      { body: 'Boa tarde! Quero saber o status da OS 3012', fromMe: false, minsAgo: 160 },
-      { body: 'Boa tarde! A OS 3012 está em andamento. O técnico passou ontem para levantamento, hoje à tarde vai executar a instalação dos pontos de rede.', fromMe: true, minsAgo: 155 },
-      { body: 'E o Wi-Fi também está incluído na OS?', fromMe: false, minsAgo: 150 },
-      { body: 'Sim! Estão inclusos 2 pontos de acesso TP-Link conforme orçado. Estimativa de conclusão: hoje às 17h.', fromMe: true, minsAgo: 145 },
-      { body: 'Perfeito! Obrigado pela agilidade', fromMe: false, minsAgo: 143 },
+      { body: 'Preciso de segunda via do boleto de maio, vencimento dia 10', fromMe: false, minsAgo: 8 },
+      { body: 'Claro! Qual o nome da empresa?', fromMe: true, minsAgo: 7 },
+      { body: 'Salão de Beleza Charme, Juliana Ramos', fromMe: false, minsAgo: 6 },
+      { body: 'Encaminhando para o Financeiro. Aguarde!', fromMe: true, minsAgo: 5 },
     ],
   },
 
-  // ── RH ──
+  /* ══════════ EM ATENDIMENTO ══════════
+     Atendente pegou e está em andamento */
+
   {
-    queueId: 7, status: 'CLOSED', userIdx: 1,
-    aiSummary: 'Candidato enviou currículo para vaga de assistente de TI.',
+    contactIdx: 2, queueId: 3, status: 'OPEN', userSlug: 'gustavo',
+    aiSummary: 'NFS-e não configurada para Itumbiara-GO. CNPJ: 33.444.555/0001-66 — Auto Peças Souza.',
     msgs: [
-      { body: 'Boa tarde! Vi que vocês têm vaga para técnico de informática. Posso enviar meu currículo?', fromMe: false, minsAgo: 5760 },
-      { body: 'Boa tarde! Pode sim! Envie aqui no WhatsApp ou pelo email rh@phinformatica.info', fromMe: true, minsAgo: 5755 },
-      { body: 'Vou enviar agora! Tenho 3 anos de experiência em manutenção de hardware e redes', fromMe: false, minsAgo: 5750 },
-      { body: 'Ótimo! Recebemos seu currículo. Entraremos em contato em até 5 dias úteis.', fromMe: true, minsAgo: 5740 },
+      { body: 'Olá! Como configuro a NFS-e para Itumbiara?', fromMe: false, minsAgo: 90 },
+      { body: 'Entendi o problema, vou verificar sua conta.', fromMe: true, minsAgo: 85 },
+      { body: 'Acesse: Configurações > Fiscal > NFS-e e selecione Itumbiara-GO', fromMe: true, minsAgo: 80 },
+      { body: 'Não aparece a opção de série para selecionar', fromMe: false, minsAgo: 75 },
+      { body: 'Seu município ainda não estava habilitado. Acabei de liberar, tente novamente!', fromMe: true, minsAgo: 60 },
+      { body: 'Funcionou!! Obrigado Gustavo!', fromMe: false, minsAgo: 55 },
+      { body: 'Ótimo! Qualquer dúvida estarei aqui 😊', fromMe: true, minsAgo: 54 },
+    ],
+  },
+
+  {
+    contactIdx: 4, queueId: 4, status: 'OPEN', userSlug: 'bruno',
+    aiSummary: 'Formatação notebook + instalação Office e antivírus. Aguardando orçamento aprovado.',
+    msgs: [
+      { body: 'Bom dia! Quero formatar meu notebook. Quanto fica?', fromMe: false, minsAgo: 120 },
+      { body: 'Bom dia! Formatação + Windows + Office fica R$ 180. Com antivírus mais R$ 50.', fromMe: true, minsAgo: 115 },
+      { body: 'Pode fazer os dois! Quando posso levar?', fromMe: false, minsAgo: 110 },
+      { body: 'Pode trazer hoje até as 17h ou amanhã de manhã.', fromMe: true, minsAgo: 105 },
+      { body: 'Vou amanhã de manhã. Preciso levar o carregador?', fromMe: false, minsAgo: 100 },
+      { body: 'Sim, traga o carregador junto. Te esperamos!', fromMe: true, minsAgo: 98 },
+    ],
+  },
+
+  {
+    contactIdx: 6, queueId: 1, status: 'OPEN', userSlug: 'iara',
+    aiSummary: 'Interesse em compra de 1 notebook para estudante. Orçamento aprovado R$ 1.990.',
+    msgs: [
+      { body: 'Olá! Vocês têm notebook para estudante? Até R$ 2.000?', fromMe: false, minsAgo: 180 },
+      { body: 'Temos! Lenovo IdeaPad i3, 8GB, SSD 256GB por R$ 1.990 em até 10x sem juros', fromMe: true, minsAgo: 175 },
+      { body: 'Tem em estoque?', fromMe: false, minsAgo: 170 },
+      { body: 'Sim! 2 unidades disponíveis', fromMe: true, minsAgo: 165 },
+      { body: 'Posso passar aí hoje à tarde?', fromMe: false, minsAgo: 160 },
+      { body: 'Pode sim! Estamos até as 18h 😊', fromMe: true, minsAgo: 158 },
+    ],
+  },
+
+  {
+    contactIdx: 9, queueId: 5, status: 'OPEN', userSlug: 'luiz',
+    aiSummary: 'Celular Samsung A54 tela quebrada. Peça em trânsito, prazo 2 dias úteis.',
+    msgs: [
+      { body: 'Bom dia! Qual o status do meu celular? Samsung A54', fromMe: false, minsAgo: 240 },
+      { body: 'Bom dia! A tela foi encomendada ontem. Prazo de chegada: 2 dias úteis.', fromMe: true, minsAgo: 235 },
+      { body: 'Tudo bem! E o valor continua R$ 320?', fromMe: false, minsAgo: 230 },
+      { body: 'Isso mesmo, valor confirmado conforme orçamento.', fromMe: true, minsAgo: 225 },
+      { body: 'Ok! Me avisa quando chegar a peça por favor', fromMe: false, minsAgo: 220 },
+      { body: 'Claro! Assim que chegar entro em contato 👍', fromMe: true, minsAgo: 218 },
+    ],
+  },
+
+  {
+    contactIdx: 12, queueId: 6, status: 'OPEN', userSlug: 'luiz',
+    aiSummary: 'OS #3012 — instalação rede + 2 pontos Wi-Fi. Técnico executando hoje à tarde.',
+    msgs: [
+      { body: 'Boa tarde! Qual o status da OS 3012?', fromMe: false, minsAgo: 160 },
+      { body: 'Boa tarde! Técnico está a caminho. Previsão de chegada: 14h30', fromMe: true, minsAgo: 155 },
+      { body: 'O Wi-Fi está incluso na OS?', fromMe: false, minsAgo: 150 },
+      { body: 'Sim! 2 pontos de acesso TP-Link conforme orçado.', fromMe: true, minsAgo: 145 },
+      { body: 'Ótimo! Obrigado', fromMe: false, minsAgo: 143 },
+    ],
+  },
+
+  /* ══════════ ENCERRADOS ══════════ */
+
+  {
+    contactIdx: 7, queueId: 2, status: 'CLOSED', userSlug: 'paulo',
+    aiSummary: 'Cobrança indevida R$ 189,90 — analisada e estornada. Resolvido.',
+    msgs: [
+      { body: 'Boa tarde! Tenho uma cobrança que não reconheço na fatura', fromMe: false, minsAgo: 1440 },
+      { body: 'Pode informar o valor e competência?', fromMe: true, minsAgo: 1430 },
+      { body: 'R$ 189,90, fatura de abril', fromMe: false, minsAgo: 1425 },
+      { body: 'Verifiquei aqui. Foi uma duplicidade no sistema. Já realizei o estorno!', fromMe: true, minsAgo: 1400 },
+      { body: 'Muito obrigada! Quando cai o estorno?', fromMe: false, minsAgo: 1395 },
+      { body: 'Em até 2 dias úteis na sua conta. Qualquer dúvida estamos aqui!', fromMe: true, minsAgo: 1393 },
+    ],
+  },
+
+  {
+    contactIdx: 10, queueId: 7, status: 'CLOSED', userSlug: 'laura',
+    aiSummary: 'Candidato para vaga de técnico de informática. Currículo recebido.',
+    msgs: [
+      { body: 'Boa tarde! Vi que vocês têm vaga para técnico de informática', fromMe: false, minsAgo: 5760 },
+      { body: 'Pode enviar seu currículo aqui mesmo ou no email rh@phinformatica.info', fromMe: true, minsAgo: 5750 },
+      { body: 'Tenho 3 anos de experiência em hardware e redes. Enviando o currículo!', fromMe: false, minsAgo: 5745 },
+      { body: 'Recebemos! Retornaremos em até 5 dias úteis.', fromMe: true, minsAgo: 5740 },
       { body: 'Obrigado! Aguardo o contato', fromMe: false, minsAgo: 5738 },
     ],
   },
+
+  {
+    contactIdx: 13, queueId: 1, status: 'CLOSED', userSlug: 'iara',
+    aiSummary: 'Venda concluída — HD externo 2TB Seagate. Retirado na loja.',
+    msgs: [
+      { body: 'Vocês vendem HD externo 2TB? Qual o preço?', fromMe: false, minsAgo: 2880 },
+      { body: 'Temos! Seagate 2TB por R$ 389. Aceitamos cartão em 6x sem juros', fromMe: true, minsAgo: 2875 },
+      { body: 'Tem em estoque?', fromMe: false, minsAgo: 2870 },
+      { body: '1 unidade disponível!', fromMe: true, minsAgo: 2865 },
+      { body: 'Vou comprar! Passo hoje à tarde', fromMe: false, minsAgo: 2860 },
+      { body: 'Perfeito! Te esperamos 😊', fromMe: true, minsAgo: 2858 },
+      { body: 'Peguei! Obrigado pela atenção', fromMe: false, minsAgo: 2700 },
+    ],
+  },
+
+  {
+    contactIdx: 14, queueId: 5, status: 'CLOSED', userSlug: 'luiz',
+    aiSummary: 'Computador não ligava — problema na fonte. Substituída e entregue.',
+    msgs: [
+      { body: 'Meu computador não liga, apertei o botão e nada acontece', fromMe: false, minsAgo: 4320 },
+      { body: 'Pode ser problema na fonte de alimentação. Vai precisar trazer para diagnóstico.', fromMe: true, minsAgo: 4315 },
+      { body: 'Quanto custa o diagnóstico?', fromMe: false, minsAgo: 4310 },
+      { body: 'O diagnóstico é gratuito! Se precisar de peça avisamos antes.', fromMe: true, minsAgo: 4305 },
+      { body: 'Ótimo! Levo amanhã de manhã', fromMe: false, minsAgo: 4300 },
+      { body: 'Confirmamos: foi a fonte. Substituída por R$ 120. Pode retirar!', fromMe: true, minsAgo: 3000 },
+      { body: 'Peguei! Funcionou perfeitamente, obrigado!', fromMe: false, minsAgo: 2900 },
+    ],
+  },
 ]
 
+// ────────────────────────────────────────────────────────
 async function main() {
-  console.log('🎭 Criando atendimentos de teste...\n')
+  console.log('🔄 Limpando dados de teste anteriores...')
 
-  // Busca usuários e filas existentes
+  // Apaga nessa ordem por causa das FK
+  await prisma.message.deleteMany({})
+  await prisma.ticket.deleteMany({})
+  await prisma.contact.deleteMany({ where: { gosacId: null } })
+  await prisma.userQueue.deleteMany({})
+
+  console.log('   ✓ Dados limpos\n')
+
+  // ── 1. Vincular usuários aos departamentos ──
+  console.log('🔗 Vinculando usuários aos departamentos...')
   const users = await prisma.user.findMany({ where: { active: true } })
-  if (users.length === 0) { console.error('❌ Rode o seed principal primeiro: npm run db:seed'); process.exit(1) }
+  const userMap = Object.fromEntries(users.map(u => [u.username, u]))
 
-  // Cria contatos
-  console.log('👥 Criando contatos...')
+  for (const [slug, qids] of Object.entries(USER_QUEUES)) {
+    const user = userMap[slug]
+    if (!user) { console.log(`   ⚠ Usuário '${slug}' não encontrado`); continue }
+    await prisma.userQueue.createMany({
+      data: qids.map(qid => ({ userId: user.id, queueId: qid })),
+      skipDuplicates: true,
+    })
+    const queue = await prisma.queue.findMany({ where: { id: { in: qids } }, select: { name: true } })
+    console.log(`   ✓ ${slug} → ${queue.map(q => q.name).join(', ')}`)
+  }
+
+  // ── 2. Criar contatos ──
+  console.log('\n👥 Criando contatos...')
   const contacts = await Promise.all(
-    CONTACTS.map(async (c) => {
-      const existing = await prisma.contact.findFirst({ where: { number: c.number } })
-      if (existing) return prisma.contact.update({ where: { id: existing.id }, data: { name: c.name, company: c.company } })
+    CONTACTS.map(async c => {
+      const ex = await prisma.contact.findFirst({ where: { number: c.number } })
+      if (ex) return prisma.contact.update({ where: { id: ex.id }, data: { name: c.name, company: c.company } })
       return prisma.contact.create({ data: { name: c.name, number: c.number, company: c.company } })
     })
   )
-  console.log(`   ${contacts.length} contatos prontos\n`)
+  console.log(`   ✓ ${contacts.length} contatos prontos`)
 
-  // Cria tickets e mensagens
-  console.log('💬 Criando tickets com conversas...')
-  let totalTickets = 0
+  // ── 3. Criar tickets e mensagens ──
+  console.log('\n💬 Criando tickets...')
+  const now = Date.now()
   let totalMsgs = 0
 
-  for (let i = 0; i < CONVERSATIONS.length; i++) {
-    const conv = CONVERSATIONS[i]
-    const contact = contacts[i % contacts.length]
-    const assignedUser = conv.userIdx !== undefined ? users[conv.userIdx % users.length] : null
-
-    const now = new Date()
-    const lastMsg = conv.msgs[conv.msgs.length - 1]
+  for (const conv of CONVERSATIONS) {
+    const contact    = contacts[conv.contactIdx]
+    const assignedUser = conv.userSlug ? userMap[conv.userSlug] : null
+    const lastMsg    = conv.msgs[conv.msgs.length - 1]
 
     const ticket = await prisma.ticket.create({
       data: {
@@ -238,13 +313,12 @@ async function main() {
         lastMessage:   lastMsg.body,
         unreadMessages: conv.status === 'PENDING' ? 1 : 0,
         aiSummary:     conv.aiSummary ?? null,
-        closedAt:      conv.status === 'CLOSED' ? new Date(now.getTime() - 60 * 60 * 1000) : null,
-        createdAt:     new Date(now.getTime() - conv.msgs[0].minsAgo * 60 * 1000),
-        updatedAt:     new Date(now.getTime() - lastMsg.minsAgo * 60 * 1000),
+        closedAt:      conv.status === 'CLOSED' ? new Date(now - 30 * 60 * 1000) : null,
+        createdAt:     new Date(now - conv.msgs[0].minsAgo * 60 * 1000),
+        updatedAt:     new Date(now - lastMsg.minsAgo * 60 * 1000),
       },
     })
 
-    // Mensagens da conversa
     for (const msg of conv.msgs) {
       await prisma.message.create({
         data: {
@@ -254,24 +328,29 @@ async function main() {
           read:         true,
           ticketId:     ticket.id,
           senderUserId: msg.fromMe ? (assignedUser?.id ?? users[0].id) : null,
-          createdAt:    new Date(now.getTime() - msg.minsAgo * 60 * 1000),
-          updatedAt:    new Date(now.getTime() - msg.minsAgo * 60 * 1000),
+          createdAt:    new Date(now - msg.minsAgo * 60 * 1000),
+          updatedAt:    new Date(now - msg.minsAgo * 60 * 1000),
         },
       })
     }
 
-    totalTickets++
+    const statusIcon = conv.status === 'PENDING' ? '🟡' : conv.status === 'OPEN' ? '🟢' : '✅'
+    const dept = { 1:'Vendas', 2:'Financeiro', 3:'Suporte Clipp', 4:'Solicitação', 5:'Laboratório', 6:'OS', 7:'RH', 8:'Fornecedor' }[conv.queueId]
+    console.log(`   ${statusIcon} [${conv.status.padEnd(7)}] ${dept?.padEnd(14)} — ${contact.name}${conv.userSlug ? ` (${conv.userSlug})` : ''}`)
     totalMsgs += conv.msgs.length
-    console.log(`   #${ticket.id} [${conv.status.padEnd(7)}] ${conv.queueId === 1 ? 'Vendas' : conv.queueId === 2 ? 'Financeiro' : conv.queueId === 3 ? 'Suporte Clipp' : conv.queueId === 4 ? 'Solicitação' : conv.queueId === 5 ? 'Laboratório' : conv.queueId === 6 ? 'OS' : 'RH'} — ${contact.name} (${conv.msgs.length} msgs)`)
   }
 
-  console.log(`\n✅ ${totalTickets} tickets criados com ${totalMsgs} mensagens!`)
-  console.log('\nResumo:')
-  console.log(`   PENDING : ${CONVERSATIONS.filter(c => c.status === 'PENDING').length}`)
-  console.log(`   OPEN    : ${CONVERSATIONS.filter(c => c.status === 'OPEN').length}`)
-  console.log(`   CLOSED  : ${CONVERSATIONS.filter(c => c.status === 'CLOSED').length}`)
+  console.log(`\n✅ ${CONVERSATIONS.length} tickets | ${totalMsgs} mensagens`)
+  console.log('\nResumo por status:')
+  console.log(`   🟡 PENDING : ${CONVERSATIONS.filter(c => c.status === 'PENDING').length}`)
+  console.log(`   🟢 OPEN    : ${CONVERSATIONS.filter(c => c.status === 'OPEN').length}`)
+  console.log(`   ✅ CLOSED  : ${CONVERSATIONS.filter(c => c.status === 'CLOSED').length}`)
+  console.log('\nFiltros por usuário:')
+  for (const [slug, qids] of Object.entries(USER_QUEUES)) {
+    const pendentes = CONVERSATIONS.filter(c => c.status === 'PENDING' && qids.includes(c.queueId)).length
+    const abertos   = CONVERSATIONS.filter(c => c.status === 'OPEN' && c.userSlug === slug).length
+    console.log(`   ${slug.padEnd(8)} → vê ${pendentes} pendentes | ${abertos} em atendimento (suas)`)
+  }
 }
 
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect())
+main().catch(console.error).finally(() => prisma.$disconnect())
