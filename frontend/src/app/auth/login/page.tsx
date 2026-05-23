@@ -146,7 +146,6 @@ export default function LoginPage() {
         {/* Logo */}
         <div className={styles.logoSection}>
           <img src={LOGO_BASE64} alt="PH Informática" className={styles.logoImg} />
-          <p className={styles.subtitle}>Plataforma de Atendimento</p>
         </div>
 
         {/* Formulário */}
@@ -187,6 +186,9 @@ export default function LoginPage() {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+
+        {/* Frase abaixo do card */}
+        <p className={styles.subtitle}>Plataforma de Atendimento</p>
       </div>
     </div>
   )
