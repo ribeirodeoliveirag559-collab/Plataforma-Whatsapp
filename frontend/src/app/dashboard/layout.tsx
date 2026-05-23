@@ -3,18 +3,19 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { MessageSquare, Users, LayoutDashboard, Building2, Shield, LogOut } from 'lucide-react'
+import { MessageSquare, Users, LayoutDashboard, Shield, LogOut } from 'lucide-react'
 import { LOGO_BASE64 } from '@/lib/logo'
 
-interface NavItem { href: string; label: string; icon: React.ElementType; managerOnly?: boolean; exact?: boolean }
+interface NavItem { href: string; label: string; icon: React.ElementType; exact?: boolean }
 
-const navItems: NavItem[] = [
-  { href: '/dashboard',               label: 'Dashboard',     icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/atendimentos',  label: 'Atendimentos',  icon: MessageSquare },
-  { href: '/dashboard/contatos',      label: 'Contatos',      icon: Users },
-  { href: '/dashboard/departamentos', label: 'Departamentos', icon: Building2 },
-  { href: '/dashboard/admin',         label: 'Painel Admin',  icon: Shield, managerOnly: true },
+// Nav principal — sem Departamentos
+const mainNav: NavItem[] = [
+  { href: '/dashboard',              label: 'Dashboard',    icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/atendimentos', label: 'Atendimentos', icon: MessageSquare },
+  { href: '/dashboard/contatos',     label: 'Contatos',     icon: Users },
 ]
+
+const adminItem: NavItem = { href: '/dashboard/admin', label: 'Painel Admin', icon: Shield }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -36,21 +37,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/auth/login')
   }
 
-  const visible = navItems.filter(i => !i.managerOnly || isManager)
+  const NavLink = ({ href, label, icon: Icon, exact }: NavItem) => {
+    const active = exact ? pathname === href : pathname.startsWith(href)
+    return (
+      <Link
+        href={href}
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
+          active
+            ? 'bg-indigo-600 text-white'
+            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+        }`}
+      >
+        <Icon size={20} className="shrink-0" />
+        <span className="text-sm font-medium hidden lg:block">{label}</span>
+      </Link>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-slate-100 overflow-hidden">
-      {/* Sidebar */}
       <aside className="w-16 lg:w-60 bg-slate-900 flex flex-col py-4 shrink-0">
+
         {/* Logo */}
         <div className="px-3 lg:px-4 mb-8">
-          {/* Sidebar expandida: logo completa */}
           <div className="hidden lg:flex items-center justify-center">
             <div className="bg-white rounded-2xl px-3 py-2">
               <img src={LOGO_BASE64} alt="PH Informática" style={{ height: '52px', width: 'auto' }} />
             </div>
           </div>
-          {/* Sidebar colapsada: ícone pequeno */}
           <div className="flex lg:hidden items-center justify-center">
             <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
               <img src={LOGO_BASE64} alt="PH" style={{ height: '32px', width: '32px', objectFit: 'contain' }} />
@@ -58,40 +72,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        {/* Nav */}
+        {/* Nav principal */}
         <nav className="flex-1 px-2 space-y-1">
-          {visible.map(({ href, label, icon: Icon, managerOnly, exact }) => {
-            const active = exact ? pathname === href : pathname.startsWith(href)
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
-                  active
-                    ? managerOnly ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-600 text-white'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <Icon size={20} className="shrink-0" />
-                <span className="text-sm font-medium hidden lg:block">{label}</span>
-                {managerOnly && (
-                  <span className="hidden lg:block ml-auto text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-full">
-                    Admin
-                  </span>
-                )}
-              </Link>
-            )
-          })}
+          {mainNav.map(item => <NavLink key={item.href} {...item} />)}
         </nav>
 
-        {/* Rodapé */}
+        {/* Rodapé: Painel Admin (gestores) + usuário + sair */}
         <div className="px-2 space-y-1 border-t border-slate-800 pt-3 mt-2">
+          {isManager && <NavLink {...adminItem} />}
+
           <div className="hidden lg:flex items-center gap-2 px-3 py-2">
             <div className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center shrink-0">
               <span className="text-white text-xs font-bold">{userName[0]?.toUpperCase()}</span>
             </div>
             <span className="text-slate-300 text-sm truncate">{userName}</span>
           </div>
+
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
