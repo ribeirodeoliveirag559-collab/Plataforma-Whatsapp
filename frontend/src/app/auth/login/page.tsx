@@ -1,8 +1,108 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import styles from './login.module.css'
+import { LOGO_BASE64 } from '@/lib/logo'
 
+/* ── Tipos da animação ── */
+interface Tracer {
+  x: number
+  y: number
+  speed: number
+  angle: number
+  life: number
+  maxLife: number
+  hue: number
+}
+
+function createTracer(w: number, h: number): Tracer {
+  return {
+    x: Math.random() * w,
+    y: Math.random() * h,
+    speed: 1.5 + Math.random(),
+    angle: Math.floor(Math.random() * 4) * (Math.PI / 2),
+    life: 0,
+    maxLife: 100 + Math.random() * 200,
+    hue: 200 + Math.random() * 60,
+  }
+}
+
+function updateTracer(t: Tracer, w: number, h: number): Tracer {
+  const nx = t.x + Math.cos(t.angle) * t.speed
+  const ny = t.y + Math.sin(t.angle) * t.speed
+  const nLife = t.life + 1
+  if (nx < 0 || nx > w || ny < 0 || ny > h || nLife > t.maxLife) {
+    return createTracer(w, h)
+  }
+  const nAngle =
+    Math.random() < 0.04
+      ? t.angle + (Math.random() < 0.5 ? 1 : -1) * (Math.PI / 2)
+      : t.angle
+  return { ...t, x: nx, y: ny, angle: nAngle, life: nLife }
+}
+
+/* ── Fundo animado de circuitos ── */
+function CircuitBackground() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let animationId = 0
+    let tracers: Tracer[] = []
+    let w = 0
+    let h = 0
+
+    const resize = () => {
+      w = canvas.width = window.innerWidth
+      h = canvas.height = window.innerHeight
+      tracers = Array.from({ length: 40 }, () => createTracer(w, h))
+    }
+
+    const animate = () => {
+      ctx.fillStyle = 'rgba(232, 244, 255, 0.08)'
+      ctx.fillRect(0, 0, w, h)
+      tracers = tracers.map(t => {
+        const next = updateTracer(t, w, h)
+        ctx.beginPath()
+        ctx.arc(next.x, next.y, 1.5, 0, Math.PI * 2)
+        ctx.fillStyle = `hsla(${next.hue}, 75%, 35%, 0.9)`
+        ctx.fill()
+        return next
+      })
+      animationId = requestAnimationFrame(animate)
+    }
+
+    window.addEventListener('resize', resize)
+    resize()
+    animate()
+
+    return () => {
+      cancelAnimationFrame(animationId)
+      window.removeEventListener('resize', resize)
+    }
+  }, [])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        background: '#e8f4ff',
+        zIndex: 0,
+      }}
+    />
+  )
+}
+
+/* ── Página de Login ── */
 export default function LoginPage() {
   const router = useRouter()
   const [form, setForm] = useState({ username: '', password: '' })
@@ -18,7 +118,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(form),
       })
 
       const data = await res.json()
@@ -39,53 +139,50 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900">
-      <div className="w-full max-w-sm">
+    <div className={styles.wrapper}>
+      <CircuitBackground />
+
+      <div className={styles.content}>
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4">
-            <span className="text-white text-2xl font-bold">PH</span>
-          </div>
-          <h1 className="text-white text-2xl font-bold">PH Informática</h1>
-          <p className="text-slate-400 text-sm mt-1">Plataforma de Atendimento</p>
+        <div className={styles.logoSection}>
+          <img src={LOGO_BASE64} alt="PH Informática" className={styles.logoImg} />
+          <p className={styles.subtitle}>Plataforma de Atendimento</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-slate-800 rounded-2xl p-8 shadow-xl space-y-4">
-          <div>
-            <label className="block text-slate-300 text-sm font-medium mb-1">Usuário</label>
+        {/* Formulário */}
+        <form onSubmit={handleSubmit} className={styles.card}>
+          <div className={styles.field}>
+            <label className={styles.label}>Usuário</label>
             <input
               type="text"
               value={form.username}
               onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 border border-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className={styles.input}
               placeholder="seu.usuario"
               required
             />
           </div>
 
-          <div>
-            <label className="block text-slate-300 text-sm font-medium mb-1">Senha</label>
+          <div className={styles.field}>
+            <label className={styles.label}>Senha</label>
             <input
               type="password"
               value={form.password}
               onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              className="w-full bg-slate-700 text-white rounded-lg px-4 py-2.5 border border-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className={styles.input}
               placeholder="••••••••"
               required
             />
           </div>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg px-4 py-2">
-              {error}
-            </div>
+            <div className={styles.error}>{error}</div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded-lg py-2.5 transition-colors"
+            className={styles.button}
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
