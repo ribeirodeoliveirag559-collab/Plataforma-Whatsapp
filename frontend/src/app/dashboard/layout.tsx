@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { MessageSquare, Users, LayoutDashboard, Building2, Shield, LogOut } from 'lucide-react'
+import { LOGO_BASE64 } from '@/lib/logo'
 
 interface NavItem { href: string; label: string; icon: React.ElementType; managerOnly?: boolean; exact?: boolean }
 
@@ -43,13 +44,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside className="w-16 lg:w-60 bg-slate-900 flex flex-col py-4 shrink-0">
         {/* Logo */}
         <div className="px-3 lg:px-4 mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-              <span className="text-white font-bold text-sm">PH</span>
+          {/* Sidebar expandida: logo completa */}
+          <div className="hidden lg:flex items-center justify-center">
+            <div className="bg-white rounded-2xl px-3 py-2">
+              <img src={LOGO_BASE64} alt="PH Informática" style={{ height: '52px', width: 'auto' }} />
             </div>
-            <div className="hidden lg:block">
-              <div className="text-white font-semibold text-sm">PH Informática</div>
-              <div className="text-slate-400 text-xs">Plataforma</div>
+          </div>
+          {/* Sidebar colapsada: ícone pequeno */}
+          <div className="flex lg:hidden items-center justify-center">
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
+              <img src={LOGO_BASE64} alt="PH" style={{ height: '32px', width: '32px', objectFit: 'contain' }} />
             </div>
           </div>
         </div>

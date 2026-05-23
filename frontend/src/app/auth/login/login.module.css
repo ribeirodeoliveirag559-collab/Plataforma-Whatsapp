@@ -20,35 +20,19 @@
   margin-bottom: 2rem;
 }
 
-.logoBox {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 64px;
-  background-color: #6366f1;
-  border-radius: 16px;
-  margin-bottom: 1rem;
-  box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3);
-}
-
-.logoText {
-  color: #ffffff;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.title {
-  color: #1e293b;
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin: 0;
+.logoImg {
+  height: 110px;
+  width: auto;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.25));
 }
 
 .subtitle {
-  color: #64748b;
-  font-size: 0.875rem;
-  margin: 4px 0 0 0;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin: 0;
+  letter-spacing: 0.02em;
 }
 
 /* ── Card ── */

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import styles from './login.module.css'
+import { LOGO_BASE64 } from '@/lib/logo'
 
 /* ── Tipos da animação ── */
 interface Tracer {
@@ -144,10 +145,7 @@ export default function LoginPage() {
       <div className={styles.content}>
         {/* Logo */}
         <div className={styles.logoSection}>
-          <div className={styles.logoBox}>
-            <span className={styles.logoText}>PH</span>
-          </div>
-          <h1 className={styles.title}>PH Informática</h1>
+          <img src={LOGO_BASE64} alt="PH Informática" className={styles.logoImg} />
           <p className={styles.subtitle}>Plataforma de Atendimento</p>
         </div>
 
