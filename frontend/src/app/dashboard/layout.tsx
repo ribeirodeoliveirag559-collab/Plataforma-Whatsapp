@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { MessageSquare, Users, LayoutDashboard, Shield, LogOut } from 'lucide-react'
+import { MessageSquare, Users, LayoutDashboard, Shield, LogOut, Headphones } from 'lucide-react'
 import { LOGO_BASE64 } from '@/lib/logo'
 
 interface NavItem { href: string; label: string; icon: React.ElementType; exact?: boolean }
@@ -85,8 +85,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {mainNav.map(item => <NavLink key={item.href} {...item} />)}
         </nav>
 
-        {/* Rodapé: Painel Admin (gestores) + usuário + sair */}
+        {/* Rodapé: Suporte Clipp + Painel Admin (gestores) + usuário + sair */}
         <div className="px-2 space-y-1 border-t border-slate-800 pt-3 mt-2">
+          <a
+            href="https://platformph.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-indigo-500/10 hover:text-indigo-400 transition-colors"
+          >
+            <Headphones size={20} className="shrink-0" />
+            <span className="text-sm font-medium hidden lg:block">Suporte Clipp</span>
+          </a>
           {isManager && <NavLink {...adminItem} />}
 
           <div className="hidden lg:flex items-center gap-2 px-3 py-2">
