@@ -67,7 +67,7 @@ export default function DashboardPage() {
       {/* Cards resumo */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="bg-white rounded-2xl border border-slate-200 p-5">
+          <div key={label} className="bg-white rounded-2xl border border-slate-200 p-5 transition-all duration-200 hover:shadow-lg hover:-translate-y-1 hover:border-slate-300 cursor-default">
             <div className={`inline-flex p-2 rounded-xl ${bg} mb-3`}>
               <Icon size={20} className={color} />
             </div>
@@ -78,7 +78,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Gráfico mensal por categoria */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 transition-all duration-200 hover:shadow-lg hover:-translate-y-1 hover:border-slate-300">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="font-semibold text-slate-800">Atendimentos por categoria — últimos 6 meses</h2>
@@ -127,7 +127,7 @@ export default function DashboardPage() {
       {/* Mês atual por categoria + Departamentos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Mês atual */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 transition-all duration-200 hover:shadow-lg hover:-translate-y-1 hover:border-slate-300">
           <h2 className="font-semibold text-slate-800 mb-4">Este mês por categoria</h2>
           <div className="space-y-3">
             {data.currentMonthByCategory.map(({ category, count }) => {
@@ -150,7 +150,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Em aberto por departamento */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 transition-all duration-200 hover:shadow-lg hover:-translate-y-1 hover:border-slate-300">
           <h2 className="font-semibold text-slate-800 mb-4">Em aberto por departamento</h2>
           <div className="space-y-2">
             {data.byQueue.map(q => (
