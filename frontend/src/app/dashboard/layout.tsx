@@ -66,7 +66,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               src={LOGO_BASE64}
               alt="PHchat"
               className="transition-all duration-300 hover:scale-110 hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.5)]"
-              style={{ height: '72px', width: 'auto', filter: 'brightness(0) invert(1)' }}
+              style={{ height: '100px', width: 'auto', filter: 'brightness(0) invert(1)' }}
             />
           </div>
           {/* Versão colapsada (mobile) */}

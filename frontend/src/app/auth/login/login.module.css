@@ -16,15 +16,19 @@
 
 /* ── Logo ── */
 .logoSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
   margin-bottom: 2rem;
 }
 
 .logoImg {
-  height: 110px;
+  height: 180px;
   width: auto;
-  margin-bottom: 0.5rem;
-  filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.25));
+  margin: 0 auto 0.75rem;
+  display: block;
+  filter: drop-shadow(0 6px 18px rgba(99, 102, 241, 0.35));
 }
 
 .subtitle {
