@@ -279,7 +279,7 @@ function ChatPanel({
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ body: text.trim() }),
     })
-    if (r.ok) { setMessages(prev => [...prev, await r.json()]); setText('') }
+    if (r.ok) { const msg = await r.json(); setMessages(prev => [...prev, msg]); setText('') }
     setSending(false)
   }
 
