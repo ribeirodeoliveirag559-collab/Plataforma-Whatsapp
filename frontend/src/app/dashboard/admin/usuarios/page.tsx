@@ -166,21 +166,12 @@ export default function UsuariosPage() {
                   <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
-                <div>
+                <div className="col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Departamento padrão</label>
                   <select value={form.defaultQueueId} onChange={e => setForm(f => ({ ...f, defaultQueueId: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">Nenhum</option>
                     {queues.map(q => <option key={q.id} value={q.id}>{q.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Perfil</label>
-                  <select value={form.profileSlug} onChange={e => setForm(f => ({ ...f, profileSlug: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="user">Atendente</option>
-                    <option value="admin">Admin</option>
-                    <option value="suporte-informatica">Suporte TI</option>
                   </select>
                 </div>
                 <div className="col-span-2 flex items-center gap-2">
