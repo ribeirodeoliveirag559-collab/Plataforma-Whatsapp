@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { MessageSquare, Users, LayoutDashboard, Shield, LogOut, Headphones } from 'lucide-react'
 import { LOGO_BASE64 } from '@/lib/logo'
+import { getStoredUser, isUserManager, canAccessSuporteClipp, type StoredUser } from '@/lib/permissions'
 import styles from './layout.module.css'
 
 interface NavItem { href: string; label: string; icon: React.ElementType; exact?: boolean }
@@ -21,15 +22,26 @@ const adminItem: NavItem = { href: '/dashboard/admin', label: 'Admin', icon: Shi
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router   = useRouter()
-  const [isManager, setIsManager] = useState(false)
-  const [userName, setUserName]   = useState('')
+  const [user, setUser] = useState<StoredUser | null>(null)
 
   useEffect(() => {
-    const stored = localStorage.getItem('user')
+    const stored = getStoredUser()
     if (!stored) { router.push('/auth/login'); return }
-    const user = JSON.parse(stored)
-    setIsManager(user.isManager || user.profileSlug === 'admin')
-    setUserName(user.name?.split(' ')[0] || user.username)
+    setUser(stored)
+
+    // Revalida com o servidor (caso permissões tenham mudado)
+    const token = localStorage.getItem('token')
+    if (token) {
+      fetch('/api/auth', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(fresh => {
+          if (fresh && fresh.id) {
+            localStorage.setItem('user', JSON.stringify(fresh))
+            setUser(fresh)
+          }
+        })
+        .catch(() => { /* offline — usa o cache */ })
+    }
   }, [router])
 
   const handleLogout = () => {
@@ -37,6 +49,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     localStorage.removeItem('user')
     router.push('/auth/login')
   }
+
+  const userName = user?.name?.split(' ')[0] || user?.username || ''
+  const isManager   = isUserManager(user)
+  const showSuporte = canAccessSuporteClipp(user)
 
   const renderNavItem = ({ href, label, icon: Icon, exact }: NavItem, admin = false) => {
     const active = exact ? pathname === href : pathname.startsWith(href)
@@ -68,18 +84,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className={styles.nav}>
           {mainNav.map(item => renderNavItem(item))}
 
-          {/* Suporte Clipp (link externo) */}
-          <a
-            href="https://platformph.vercel.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.navItem}
-          >
-            <Headphones size={17} className="shrink-0" />
-            <span className={styles.navLabel}>Suporte Clipp</span>
-          </a>
+          {/* Suporte Clipp — somente gestores ou quem tem fila "Suporte ao Clipp Pro" */}
+          {showSuporte && (
+            <a
+              href="https://platformph.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.navItem}
+            >
+              <Headphones size={17} className="shrink-0" />
+              <span className={styles.navLabel}>Suporte Clipp</span>
+            </a>
+          )}
 
-          {/* Painel Admin (apenas gestores) */}
+          {/* Painel Admin — somente gestores */}
           {isManager && renderNavItem(adminItem, true)}
         </nav>
 

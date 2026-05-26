@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
         OR: [{ username }, { email: username }],
         active: true,
         deletedAt: null
+      },
+      include: {
+        defaultQueue: { select: { id: true, name: true, color: true } },
+        queues:       { select: { queue: { select: { id: true, name: true, color: true } } } },
       }
     })
 
@@ -26,8 +30,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       token,
       user: {
-        id: user.id, name: user.name, username: user.username,
-        email: user.email, profileSlug: user.profileSlug, avatar: user.avatar
+        id:             user.id,
+        name:           user.name,
+        username:       user.username,
+        email:          user.email,
+        profileSlug:    user.profileSlug,
+        avatar:         user.avatar,
+        isManager:      user.isManager,
+        defaultQueueId: user.defaultQueueId,
+        defaultQueue:   user.defaultQueue,
+        queues:         user.queues.map(uq => uq.queue),
       }
     })
   } catch (e) {
@@ -43,7 +55,19 @@ export async function GET(req: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { id: payload.id },
-    select: { id: true, name: true, username: true, email: true, profileSlug: true, avatar: true, defaultQueueId: true }
+    select: {
+      id: true, name: true, username: true, email: true,
+      profileSlug: true, avatar: true, isManager: true,
+      defaultQueueId: true,
+      defaultQueue: { select: { id: true, name: true, color: true } },
+      queues:       { select: { queue: { select: { id: true, name: true, color: true } } } },
+    }
   })
-  return NextResponse.json(user)
+
+  if (!user) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
+
+  return NextResponse.json({
+    ...user,
+    queues: user.queues.map(uq => uq.queue),
+  })
 }
