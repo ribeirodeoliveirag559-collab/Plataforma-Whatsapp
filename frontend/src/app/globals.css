@@ -3,18 +3,61 @@
 @tailwind utilities;
 
 :root {
-  --ph-primary: #6366f1;
-  --ph-sidebar: #0f172a;
-  --ph-bg: #f1f5f9;
+  --ph-blue-50:  #f0f7ff;
+  --ph-blue-100: #e8f4ff;
+  --ph-blue-200: #d6eaff;
+  --ph-blue-300: #b0d6ff;
+  --ph-blue-400: #7eb8f5;
+  --ph-blue-500: #4f93e8;
+
+  --ph-purple-50:  #f5f3ff;
+  --ph-purple-100: #ede9fe;
+  --ph-purple-200: #ddd6fe;
+  --ph-purple-300: #c4b5fd;
+  --ph-purple-400: #a78bfa;
+  --ph-purple-500: #8b5cf6;
+
+  --ph-indigo: #6366f1;
+  --ph-indigo-hover: #4f46e5;
+
+  --ph-text-dark: #1e293b;
+  --ph-text-med:  #475569;
+  --ph-text-soft: #64748b;
+  --ph-text-mute: #94a3b8;
+
+  --ph-glass: rgba(255, 255, 255, 0.7);
+  --ph-glass-strong: rgba(255, 255, 255, 0.85);
+  --ph-border-soft: rgba(196, 181, 253, 0.25);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  background-color: var(--ph-bg);
-  color: #1e293b;
+  color: var(--ph-text-dark);
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(196, 181, 253, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 50% at 90% 10%, rgba(176, 214, 255, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(167, 139, 250, 0.12) 0%, transparent 60%),
+    linear-gradient(180deg, #f0f7ff 0%, #e8f4ff 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
 }
 
-/* Scrollbar personalizada */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #f1f5f9; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(167, 139, 250, 0.4);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.6); }
+
+/* Animações utilitárias */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.ph-fadein { animation: fadeIn 0.35s ease-out both; }
+
+@keyframes glow { 0%, 100% { box-shadow: 0 0 18px rgba(167, 139, 250, 0.3); } 50% { box-shadow: 0 0 30px rgba(167, 139, 250, 0.5); } }
+.ph-glow { animation: glow 3s ease-in-out infinite; }

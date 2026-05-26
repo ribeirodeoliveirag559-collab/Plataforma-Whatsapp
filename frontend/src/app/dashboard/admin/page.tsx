@@ -1,34 +1,53 @@
 'use client'
 import Link from 'next/link'
 import { Users, Building2, Shield } from 'lucide-react'
+import s from '../dashboard.module.css'
 
 const cards = [
-  { href: '/dashboard/admin/usuarios',     label: 'Usuários',      desc: 'Criar e gerenciar logins dos colaboradores', icon: Users,     color: 'bg-indigo-50 text-indigo-600' },
-  { href: '/dashboard/admin/departamentos',label: 'Departamentos', desc: 'Adicionar e editar departamentos e filas',    icon: Building2, color: 'bg-green-50 text-green-600'   },
+  { href: '/dashboard/admin/usuarios',      label: 'Usuários',      desc: 'Criar e gerenciar logins dos colaboradores', icon: Users,     accent: '#6366f1' },
+  { href: '/dashboard/admin/departamentos', label: 'Departamentos', desc: 'Adicionar e editar departamentos e filas',   icon: Building2, accent: '#22c55e' },
 ]
 
 export default function AdminPage() {
   return (
-    <div className="p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-          <Shield size={20} className="text-amber-600" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Painel Administrador</h1>
-          <p className="text-slate-500 text-sm">Acesso restrito a gestores</p>
+    <div className={s.container}>
+      <div className={s.pageHeader}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.25) 0%, rgba(245, 158, 11, 0.25) 100%)',
+            border: '1px solid rgba(251, 191, 36, 0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#d97706',
+            boxShadow: '0 4px 14px rgba(245, 158, 11, 0.25)',
+          }}>
+            <Shield size={22} />
+          </div>
+          <div>
+            <h1 className={s.pageTitle}>Painel Administrador</h1>
+            <p className={s.pageSubtitle}>Acesso restrito a gestores</p>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {cards.map(({ href, label, desc, icon: Icon, color }) => (
-          <Link key={href} href={href}
-            className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-md hover:border-indigo-200 transition-all group">
-            <div className={`inline-flex p-3 rounded-xl ${color} mb-4`}>
-              <Icon size={22} />
+      <div className={s.grid2}>
+        {cards.map(({ href, label, desc, icon: Icon, accent }) => (
+          <Link key={href} href={href} className={`${s.card} ${s.cardHover}`} style={{ textDecoration: 'none', display: 'block' }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: 16, marginBottom: 18,
+              background: `linear-gradient(135deg, ${accent}28 0%, ${accent}15 100%)`,
+              border: `1px solid ${accent}50`,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              color: accent,
+              boxShadow: `0 6px 16px ${accent}30`,
+            }}>
+              <Icon size={24} />
             </div>
-            <h2 className="font-semibold text-slate-800 text-lg mb-1 group-hover:text-indigo-600 transition-colors">{label}</h2>
-            <p className="text-slate-500 text-sm">{desc}</p>
+            <h2 style={{
+              fontWeight: 700, color: '#1e293b', fontSize: '1.125rem', margin: '0 0 6px 0',
+              transition: 'color 0.2s ease',
+            }}>{label}</h2>
+            <p style={{ color: '#64748b', fontSize: '0.875rem', margin: 0 }}>{desc}</p>
           </Link>
         ))}
       </div>

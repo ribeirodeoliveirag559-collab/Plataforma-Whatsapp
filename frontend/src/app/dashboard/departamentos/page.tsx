@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Building2, MessageSquare } from 'lucide-react'
+import s from '../dashboard.module.css'
 
 interface Queue {
   id: number; name: string; color: string; order: number
@@ -18,32 +19,57 @@ export default function DepartamentosPage() {
   }, [])
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Departamentos</h1>
-        <p className="text-slate-500 text-sm mt-1">{queues.length} departamentos ativos</p>
+    <div className={s.container}>
+      <div className={s.pageHeader}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className={s.pageIconBox}>
+            <Building2 size={22} />
+          </div>
+          <div>
+            <h1 className={s.pageTitle}>Departamentos</h1>
+            <p className={s.pageSubtitle}>{queues.length} departamentos ativos</p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className={s.grid2}>
         {queues.map(q => (
-          <div key={q.id} className="bg-white rounded-2xl border border-slate-200 p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: q.color + '20' }}>
-                  <Building2 size={18} style={{ color: q.color }} />
+          <div key={q.id} className={`${s.card} ${s.cardHover}`}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 14,
+                  background: `linear-gradient(135deg, ${q.color}28 0%, ${q.color}18 100%)`,
+                  border: `1px solid ${q.color}40`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: `0 4px 12px ${q.color}25`,
+                }}>
+                  <Building2 size={20} style={{ color: q.color }} />
                 </div>
                 <div>
-                  <div className="font-semibold text-slate-800">{q.name}</div>
-                  <div className="text-xs text-slate-400">Ordem #{q.order}</div>
+                  <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '1.0625rem' }}>{q.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>Ordem #{q.order}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-1 rounded-full">
-                <MessageSquare size={13} className="text-slate-500" />
-                <span className="text-sm font-semibold text-slate-700">{q._count.tickets}</span>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(237, 233, 254, 0.7)',
+                border: '1px solid rgba(196, 181, 253, 0.4)',
+                padding: '5px 12px', borderRadius: 99,
+              }}>
+                <MessageSquare size={13} style={{ color: '#6366f1' }} />
+                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#4f46e5' }}>{q._count.tickets}</span>
               </div>
             </div>
             {q.greetingMessage && (
-              <p className="text-xs text-slate-500 line-clamp-2 bg-slate-50 rounded-lg p-2">
+              <p style={{
+                fontSize: '0.8125rem', color: '#64748b',
+                background: 'rgba(244, 243, 255, 0.5)',
+                border: '1px solid rgba(196, 181, 253, 0.25)',
+                borderRadius: 10, padding: '8px 12px', margin: 0,
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}>
                 {q.greetingMessage}
               </p>
             )}

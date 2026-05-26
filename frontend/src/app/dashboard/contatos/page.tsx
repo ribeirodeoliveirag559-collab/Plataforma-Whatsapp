@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Search, User } from 'lucide-react'
+import { Search, User, Users } from 'lucide-react'
+import s from '../dashboard.module.css'
 
 interface Contact {
   id: number; name: string; number: string
@@ -15,10 +16,10 @@ export default function ContatosPage() {
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
 
-  const load = async (s: string, p: number) => {
+  const load = async (q: string, p: number) => {
     setLoading(true)
     const token = localStorage.getItem('token')
-    const r = await fetch(`/api/contacts?search=${s}&pageNumber=${p}`, { headers: { Authorization: `Bearer ${token}` } })
+    const r = await fetch(`/api/contacts?search=${q}&pageNumber=${p}`, { headers: { Authorization: `Bearer ${token}` } })
     const d = await r.json()
     setContacts(d.contacts || [])
     setCount(d.count || 0)
@@ -30,59 +31,91 @@ export default function ContatosPage() {
   const handleSearch = (v: string) => { setSearch(v); setPage(1); load(v, 1) }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Contatos</h1>
-          <p className="text-slate-500 text-sm mt-1">{count.toLocaleString()} contatos cadastrados</p>
+    <div className={s.container}>
+      <div className={s.pageHeader}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className={s.pageIconBox}>
+            <Users size={22} />
+          </div>
+          <div>
+            <h1 className={s.pageTitle}>Contatos</h1>
+            <p className={s.pageSubtitle}>{count.toLocaleString()} contatos cadastrados</p>
+          </div>
         </div>
       </div>
 
       {/* Busca */}
-      <div className="relative mb-6">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div style={{ position: 'relative' }}>
+        <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#a78bfa', pointerEvents: 'none' }} />
         <input
           value={search}
           onChange={e => handleSearch(e.target.value)}
           placeholder="Buscar por nome, número ou empresa..."
-          className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className={s.input}
+          style={{ paddingLeft: 40 }}
         />
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full" /></div>
+        <div className={s.spinnerWrap}><div className={s.spinner} /></div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className={s.card} style={{ padding: 0, overflow: 'hidden' }}>
           {contacts.map((c, i) => (
-            <div key={c.id} className={`flex items-center gap-3 p-4 ${i < contacts.length - 1 ? 'border-b border-slate-100' : ''}`}>
-              <div className="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
-                <User size={16} className="text-indigo-600" />
+            <div key={c.id} style={{
+              display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px',
+              borderBottom: i < contacts.length - 1 ? '1px solid rgba(226, 232, 240, 0.6)' : 'none',
+              transition: 'background 0.15s ease',
+            }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(244, 243, 255, 0.5)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <div style={{
+                width: 38, height: 38, borderRadius: 12, flexShrink: 0,
+                background: 'linear-gradient(135deg, #a78bfa 0%, #6366f1 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 3px 10px rgba(99, 102, 241, 0.25)',
+              }}>
+                <User size={16} style={{ color: 'white' }} />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-slate-800 truncate">{c.name || 'Sem nome'}</div>
-                <div className="text-sm text-slate-500">{c.number}{c.company ? ` · ${c.company}` : ''}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.name || 'Sem nome'}
+                </div>
+                <div style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                  {c.number}{c.company ? ` · ${c.company}` : ''}
+                </div>
               </div>
-              <div className="flex gap-1">
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 {c.tags.map(({ tag }) => (
-                  <span key={tag.name} className="text-xs px-2 py-0.5 rounded-full" style={{ background: tag.color + '20', color: tag.color }}>
+                  <span key={tag.name} style={{
+                    fontSize: '0.6875rem', fontWeight: 600, padding: '3px 9px', borderRadius: 99,
+                    background: tag.color + '20', color: tag.color, border: `1px solid ${tag.color}40`,
+                  }}>
                     {tag.name}
                   </span>
                 ))}
               </div>
             </div>
           ))}
-          {contacts.length === 0 && <div className="text-center py-12 text-slate-400">Nenhum contato encontrado</div>}
+          {contacts.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '48px 20px', color: '#94a3b8' }}>Nenhum contato encontrado</div>
+          )}
         </div>
       )}
 
-      {/* Paginação */}
       {count > 20 && (
-        <div className="flex justify-center gap-2 mt-4">
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}>
           <button disabled={page === 1} onClick={() => { setPage(p => p - 1); load(search, page - 1) }}
-            className="px-4 py-2 rounded-lg border border-slate-200 text-sm disabled:opacity-40">Anterior</button>
-          <span className="px-4 py-2 text-sm text-slate-500">Página {page} de {Math.ceil(count / 20)}</span>
+            className={`${s.btn} ${s.btnGhost}`} style={{ opacity: page === 1 ? 0.4 : 1 }}>
+            Anterior
+          </button>
+          <span style={{ padding: '0 16px', fontSize: '0.875rem', color: '#64748b', fontWeight: 500 }}>
+            Página {page} de {Math.ceil(count / 20)}
+          </span>
           <button disabled={page >= Math.ceil(count / 20)} onClick={() => { setPage(p => p + 1); load(search, page + 1) }}
-            className="px-4 py-2 rounded-lg border border-slate-200 text-sm disabled:opacity-40">Próxima</button>
+            className={`${s.btn} ${s.btnGhost}`} style={{ opacity: page >= Math.ceil(count / 20) ? 0.4 : 1 }}>
+            Próxima
+          </button>
         </div>
       )}
     </div>
