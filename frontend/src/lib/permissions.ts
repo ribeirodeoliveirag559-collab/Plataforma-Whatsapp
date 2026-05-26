@@ -31,10 +31,17 @@ export function getStoredUser(): StoredUser | null {
   try { return JSON.parse(raw) as StoredUser } catch { return null }
 }
 
-/** Gestor: campo isManager ou profileSlug === 'admin'. */
+/**
+ * Gestor é EXCLUSIVAMENTE quem tem isManager === true no banco.
+ *
+ * Importante: profileSlug === 'admin' NÃO indica gestor — é apenas
+ * um campo de categoria de usuário (admin/user/suporte-informatica).
+ * Vários usuários (ex: Laura) têm profileSlug='admin' por seed mas
+ * isManager=false. O único campo confiável é isManager.
+ */
 export function isUserManager(user: StoredUser | null): boolean {
   if (!user) return false
-  return Boolean(user.isManager) || user.profileSlug === 'admin'
+  return user.isManager === true
 }
 
 /** Tem acesso ao Suporte Clipp? Gestor OU tem a fila "Suporte ao Clipp Pro". */
