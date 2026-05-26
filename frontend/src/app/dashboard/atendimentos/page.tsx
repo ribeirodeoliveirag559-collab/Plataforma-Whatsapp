@@ -89,7 +89,15 @@ export default function AtendimentosPage() {
   const currentTab = STATUS_TABS.find(t => t.key === tab)!
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div
+      className="flex h-full overflow-hidden"
+      style={{
+        margin: '0 16px 16px',
+        borderRadius: '20px',
+        border: '1px solid rgba(196, 181, 253, 0.35)',
+        boxShadow: '0 10px 40px -10px rgba(99, 102, 241, 0.18), 0 4px 16px -4px rgba(167, 139, 250, 0.15)',
+      }}
+    >
 
       {/* ══ PAINEL ESQUERDO — lista ══ */}
       <aside className="w-80 xl:w-96 shrink-0 flex flex-col border-r border-slate-200 bg-white">
