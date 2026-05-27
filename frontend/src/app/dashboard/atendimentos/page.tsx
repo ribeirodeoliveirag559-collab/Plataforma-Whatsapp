@@ -51,6 +51,7 @@ export default function AtendimentosPage() {
   const [tickets, setTickets]   = useState<Ticket[]>([])
   const [selected, setSelected] = useState<Ticket | null>(null)
   const [loading, setLoading]   = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [showAll, setShowAll]   = useState(false)   // toggle "ver todas"
   const [queues, setQueues]     = useState<Queue[]>([])
 
@@ -58,12 +59,22 @@ export default function AtendimentosPage() {
 
   const fetchTickets = useCallback(async (status: TicketStatus, all = false) => {
     setLoading(true)
+    setFetchError(null)
     try {
       const r = await fetch(`/api/tickets?status=${status}&showAll=${all}&pageNumber=1`, {
         headers: { Authorization: `Bearer ${token()}` },
       })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ error: `HTTP ${r.status}` }))
+        setFetchError(err.error ?? `Erro ${r.status}`)
+        setTickets([])
+        return
+      }
       const d = await r.json()
       setTickets(d.tickets ?? [])
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : 'Erro de conexão')
+      setTickets([])
     } finally { setLoading(false) }
   }, [])
 
@@ -140,9 +151,14 @@ export default function AtendimentosPage() {
           )}
         </div>
 
-        {/* Contagem */}
-        <div className="px-4 py-2 text-xs text-slate-400 border-b border-slate-50">
-          {loading ? 'Carregando...' : `${tickets.length} atendimento${tickets.length !== 1 ? 's' : ''}`}
+        {/* Contagem / erro */}
+        <div className="px-4 py-2 text-xs border-b border-slate-50">
+          {loading
+            ? <span className="text-slate-400">Carregando...</span>
+            : fetchError
+              ? <span className="text-red-500 font-medium">⚠ {fetchError}</span>
+              : <span className="text-slate-400">{tickets.length} atendimento{tickets.length !== 1 ? 's' : ''}</span>
+          }
         </div>
 
         {/* Lista */}
@@ -150,6 +166,18 @@ export default function AtendimentosPage() {
           {loading ? (
             <div className="flex justify-center py-16">
               <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : fetchError ? (
+            <div className="flex flex-col items-center justify-center py-16 text-red-400 text-sm gap-2 px-4 text-center">
+              <span className="text-3xl">⚠️</span>
+              <span className="font-medium text-red-500">Erro ao carregar</span>
+              <span className="text-slate-400">{fetchError}</span>
+              <button
+                onClick={() => fetchTickets(tab, showAll)}
+                className="mt-2 px-4 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-500"
+              >
+                Tentar novamente
+              </button>
             </div>
           ) : tickets.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400 text-sm gap-2">

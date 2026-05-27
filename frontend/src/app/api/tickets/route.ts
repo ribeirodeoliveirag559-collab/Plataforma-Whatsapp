@@ -21,11 +21,17 @@ export async function GET(req: NextRequest) {
   const isManager = dbUser?.isManager ?? false
 
   // Filas do usuário logado
-  const userQueues = await prisma.userQueue.findMany({
-    where:  { userId: payload.id },
-    select: { queueId: true },
-  })
-  const userQueueIds = userQueues.map(q => q.queueId)
+  let userQueueIds: number[] = []
+  try {
+    const userQueues = await prisma.userQueue.findMany({
+      where:  { userId: payload.id },
+      select: { queueId: true },
+    })
+    userQueueIds = userQueues.map(q => q.queueId)
+  } catch {
+    // Tabela user_queues ainda não existe no banco — trata como sem filas
+    userQueueIds = []
+  }
 
   let where: Record<string, unknown> = {}
 

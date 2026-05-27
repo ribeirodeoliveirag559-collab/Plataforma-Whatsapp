@@ -8,12 +8,11 @@ import s from '../dashboard.module.css'
 
 type Status = 'loading' | 'allowed' | 'denied'
 
-/** Decide o status com base no user — undefined isManager == otimista (allowed) */
+/** Decide o status com base no user */
 function decide(user: StoredUser | null): Status {
   if (!user) return 'denied'
-  // Se o flag isManager NÃO foi explicitamente carregado (localStorage antigo),
-  // damos benefício da dúvida — o backend valida em cada chamada.
-  if (user.isManager === undefined && user.profileSlug === undefined) return 'allowed'
+  // isManager ausente no localStorage (sessão antiga) → aguarda validação do servidor
+  if (user.isManager === undefined) return 'loading'
   return isUserManager(user) ? 'allowed' : 'denied'
 }
 
@@ -25,21 +24,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const stored = getStoredUser()
     if (!stored) { router.push('/auth/login'); return }
 
-    // Decisão otimista imediata (evita "flash de Acesso restrito")
-    setStatus(decide(stored))
+    const initial = decide(stored)
+    setStatus(initial)
 
-    // Em background, valida com o servidor e ajusta se necessário
+    // Sempre valida com o servidor para garantir permissões atualizadas
     const token = localStorage.getItem('token')
-    if (!token) return
+    if (!token) { setStatus('denied'); return }
 
     fetch('/api/auth', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(fresh => {
-        if (!fresh || !fresh.id) return
+        if (!fresh?.id) {
+          // Servidor não respondeu — mantém decisão local se já tínhamos isManager definido
+          if (initial === 'loading') setStatus('denied')
+          return
+        }
         localStorage.setItem('user', JSON.stringify(fresh))
         setStatus(decide(fresh))
       })
-      .catch(() => { /* ignora — usa decisão otimista */ })
+      .catch(() => {
+        if (initial === 'loading') setStatus('denied')
+      })
   }, [router])
 
   if (status === 'loading') {
