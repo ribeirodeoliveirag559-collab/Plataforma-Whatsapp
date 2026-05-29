@@ -6,7 +6,7 @@ import {
   UserCheck, X, ChevronRight, Building2, Phone, Bot,
   ArrowLeftRight, Eye, EyeOff, CalendarClock, Search,
   Loader2, AlertCircle, Pencil, Save, Tag, Briefcase,
-  StickyNote,
+  StickyNote, RotateCcw,
 } from 'lucide-react'
 
 type TicketStatus = 'PENDING' | 'OPEN' | 'CLOSED'
@@ -452,6 +452,12 @@ function ChatPanel({
               <X size={13} /> Encerrar
             </button>
           </>)}
+          {ticket.status === 'CLOSED' && (
+            <button onClick={() => updateStatus('OPEN')} disabled={actioning}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors">
+              <RotateCcw size={13} /> Reabrir atendimento
+            </button>
+          )}
         </div>
 
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 ml-1 shrink-0">
@@ -549,8 +555,12 @@ function ChatPanel({
           </p>
         </div>
       ) : (
-        <div className="bg-slate-50 border-t border-slate-200 px-4 py-3 text-center shrink-0">
+        <div className="bg-slate-50 border-t border-slate-200 px-4 py-3 flex items-center justify-between shrink-0">
           <p className="text-slate-400 text-sm">Atendimento encerrado</p>
+          <button onClick={() => updateStatus('OPEN')} disabled={actioning}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors">
+            <RotateCcw size={13} /> Reabrir atendimento
+          </button>
         </div>
       )}
 
