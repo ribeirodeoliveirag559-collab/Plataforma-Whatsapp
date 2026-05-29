@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { MessageSquare, Users, LayoutDashboard, Shield, LogOut, Headphones } from 'lucide-react'
+import { MessageSquare, Users, LayoutDashboard, Shield, LogOut, Headphones, CalendarClock } from 'lucide-react'
 import { LOGO_BASE64 } from '@/lib/logo'
 import { getStoredUser, isUserManager, canAccessSuporteClipp, type StoredUser } from '@/lib/permissions'
 import styles from './layout.module.css'
@@ -12,9 +12,10 @@ interface NavItem { href: string; label: string; icon: React.ElementType; exact?
 
 // Nav principal — sem Departamentos
 const mainNav: NavItem[] = [
-  { href: '/dashboard',              label: 'Dashboard',    icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/atendimentos', label: 'Atendimentos', icon: MessageSquare },
-  { href: '/dashboard/contatos',     label: 'Contatos',     icon: Users },
+  { href: '/dashboard',                label: 'Dashboard',    icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/atendimentos',   label: 'Atendimentos', icon: MessageSquare },
+  { href: '/dashboard/agendamentos',   label: 'Agendamentos', icon: CalendarClock },
+  { href: '/dashboard/contatos',       label: 'Contatos',     icon: Users },
 ]
 
 const adminItem: NavItem = { href: '/dashboard/admin', label: 'Admin', icon: Shield }

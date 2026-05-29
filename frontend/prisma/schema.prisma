@@ -23,10 +23,11 @@ model User {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  tickets        Ticket[]
-  sentMessages   Message[] @relation("SentMessages")
-  defaultQueue   Queue?    @relation("UserDefaultQueue", fields: [defaultQueueId], references: [id])
-  queues         UserQueue[]
+  tickets           Ticket[]
+  sentMessages      Message[]          @relation("SentMessages")
+  defaultQueue      Queue?             @relation("UserDefaultQueue", fields: [defaultQueueId], references: [id])
+  queues            UserQueue[]
+  scheduledTickets  ScheduledTicket[]
 
   @@map("users")
 }
@@ -42,9 +43,10 @@ model Queue {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  tickets         Ticket[]
-  defaultUsers    User[]    @relation("UserDefaultQueue")
-  userQueues      UserQueue[]
+  tickets           Ticket[]
+  defaultUsers      User[]             @relation("UserDefaultQueue")
+  userQueues        UserQueue[]
+  scheduledTickets  ScheduledTicket[]
 
   @@map("queues")
 }
@@ -76,8 +78,9 @@ model Contact {
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  tickets       Ticket[]
-  tags          ContactTag[]
+  tickets           Ticket[]
+  tags              ContactTag[]
+  scheduledTickets  ScheduledTicket[]
 
   @@map("contacts")
 }
@@ -120,6 +123,7 @@ model Ticket {
   queue          Queue?   @relation(fields: [queueId], references: [id])
   user           User?    @relation(fields: [userId], references: [id])
   messages       Message[]
+  scheduledFrom  ScheduledTicket[]
 
   @@map("tickets")
 }
@@ -151,4 +155,24 @@ model Message {
   replies      Message[] @relation("QuotedMessages")
 
   @@map("messages")
+}
+
+model ScheduledTicket {
+  id          Int      @id @default(autoincrement())
+  contactId   Int
+  userId      Int
+  queueId     Int?
+  message     String
+  scheduledAt DateTime
+  status      String   @default("PENDING") // PENDING | SENT | CANCELLED
+  ticketId    Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contact     Contact  @relation(fields: [contactId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+  queue       Queue?   @relation(fields: [queueId], references: [id])
+  ticket      Ticket?  @relation(fields: [ticketId], references: [id])
+
+  @@map("scheduled_tickets")
 }
