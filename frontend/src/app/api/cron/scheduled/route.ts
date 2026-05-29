@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getTokenFromRequest } from '@/lib/auth'
 
 // GET /api/cron/scheduled
-// Chamado pelo Vercel Cron Job a cada minuto.
-// Verifica agendamentos que venceram e cria o ticket + mensagem inicial.
+// Aceita duas formas de autenticação:
+//   1. Vercel Cron Job → Authorization: Bearer <CRON_SECRET>
+//   2. Usuário logado  → Authorization: Bearer <JWT>  (polling client-side)
 export async function GET(req: NextRequest) {
-  // Proteção simples: chave enviada pelo Vercel ou configurada manualmente
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+
+  // Verifica se é o cron da Vercel ou um JWT válido de usuário
+  const isCron    = cronSecret ? authHeader === `Bearer ${cronSecret}` : false
+  const userToken = getTokenFromRequest(req)
+
+  if (!isCron && !userToken) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
   const now = new Date()
 
-  // Busca agendamentos PENDING que já passaram do horário
   const due = await prisma.scheduledTicket.findMany({
     where: {
       status:      'PENDING',
@@ -30,18 +35,16 @@ export async function GET(req: NextRequest) {
 
   for (const item of due) {
     try {
-      // Cria ticket OPEN já atribuído ao usuário que agendou
       const ticket = await prisma.ticket.create({
         data: {
-          contactId: item.contactId,
-          userId:    item.userId,
-          queueId:   item.queueId,
-          status:    'OPEN',
+          contactId:   item.contactId,
+          userId:      item.userId,
+          queueId:     item.queueId,
+          status:      'OPEN',
           lastMessage: item.message,
         },
       })
 
-      // Cria mensagem inicial
       await prisma.message.create({
         data: {
           body:         item.message,
@@ -53,7 +56,6 @@ export async function GET(req: NextRequest) {
         },
       })
 
-      // Atualiza o agendamento como SENT, vincula ao ticket criado
       await prisma.scheduledTicket.update({
         where: { id: item.id },
         data:  { status: 'SENT', ticketId: ticket.id },

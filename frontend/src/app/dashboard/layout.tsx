@@ -45,6 +45,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [router])
 
+  // Polling: dispara agendamentos vencidos enquanto o usuário está com o app aberto
+  useEffect(() => {
+    function fireScheduled() {
+      const token = localStorage.getItem('token')
+      if (!token) return
+      fetch('/api/cron/scheduled', { headers: { Authorization: `Bearer ${token}` } })
+        .catch(() => { /* silencioso */ })
+    }
+    fireScheduled() // dispara imediatamente ao abrir
+    const interval = setInterval(fireScheduled, 60_000) // e a cada 60s
+    return () => clearInterval(interval)
+  }, [])
+
   const handleLogout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
