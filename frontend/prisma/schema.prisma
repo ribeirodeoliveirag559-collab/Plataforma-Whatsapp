@@ -178,3 +178,13 @@ model ScheduledTicket {
 
   @@map("scheduled_tickets")
 }
+
+model QuickReply {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique  // atalho usado após o /
+  message   String            // texto completo da mensagem
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("quick_replies")
+}

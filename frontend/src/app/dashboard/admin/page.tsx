@@ -1,11 +1,12 @@
 'use client'
 import Link from 'next/link'
-import { Users, Building2, Shield } from 'lucide-react'
+import { Users, Building2, Shield, Zap } from 'lucide-react'
 import s from '../dashboard.module.css'
 
 const cards = [
-  { href: '/dashboard/admin/usuarios',      label: 'Usuários',      desc: 'Criar e gerenciar logins dos colaboradores', icon: Users,     accent: '#6366f1' },
-  { href: '/dashboard/admin/departamentos', label: 'Departamentos', desc: 'Adicionar e editar departamentos e filas',   icon: Building2, accent: '#22c55e' },
+  { href: '/dashboard/admin/usuarios',         label: 'Usuários',          desc: 'Criar e gerenciar logins dos colaboradores',      icon: Users,     accent: '#6366f1' },
+  { href: '/dashboard/admin/departamentos',    label: 'Departamentos',     desc: 'Adicionar e editar departamentos e filas',         icon: Building2, accent: '#22c55e' },
+  { href: '/dashboard/admin/respostas-rapidas', label: 'Respostas Rápidas', desc: 'Mensagens pré-editadas acionadas com / no chat',   icon: Zap,       accent: '#7c3aed' },
 ]
 
 export default function AdminPage() {

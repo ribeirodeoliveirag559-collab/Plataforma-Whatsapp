@@ -6,7 +6,7 @@ import {
   UserCheck, X, ChevronRight, Building2, Phone, Bot,
   ArrowLeftRight, Eye, EyeOff, CalendarClock, Search,
   Loader2, AlertCircle, Pencil, Save, Tag, Briefcase,
-  StickyNote, RotateCcw,
+  StickyNote, RotateCcw, Zap,
 } from 'lucide-react'
 
 type TicketStatus = 'PENDING' | 'OPEN' | 'CLOSED'
@@ -338,6 +338,47 @@ function ChatPanel({
   const [showEditContact, setShowEditContact] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  // ── Quick replies ──
+  const [quickReplies, setQuickReplies]   = useState<{ id: number; name: string; message: string }[]>([])
+  const [qrFiltered,   setQrFiltered]     = useState<{ id: number; name: string; message: string }[]>([])
+  const [showQR,       setShowQR]         = useState(false)
+  const [qrIndex,      setQrIndex]        = useState(0)
+
+  useEffect(() => {
+    fetch('/api/quick-replies', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setQuickReplies(Array.isArray(d) ? d : []))
+      .catch(() => {})
+  }, [token])
+
+  const handleTextChange = (val: string) => {
+    setText(val)
+    if (val.startsWith('/')) {
+      const q = val.slice(1).toLowerCase()
+      const filtered = quickReplies.filter(r => r.name.includes(q))
+      setQrFiltered(filtered)
+      setShowQR(filtered.length > 0)
+      setQrIndex(0)
+    } else {
+      setShowQR(false)
+    }
+  }
+
+  const applyQuickReply = (qr: { name: string; message: string }) => {
+    setText(qr.message)
+    setShowQR(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showQR) {
+      if (e.key === 'ArrowDown')  { e.preventDefault(); setQrIndex(i => Math.min(i + 1, qrFiltered.length - 1)); return }
+      if (e.key === 'ArrowUp')    { e.preventDefault(); setQrIndex(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); applyQuickReply(qrFiltered[qrIndex]); return }
+      if (e.key === 'Escape')     { setShowQR(false); return }
+      if (e.key === 'Tab')        { e.preventDefault(); applyQuickReply(qrFiltered[qrIndex]); return }
+    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+  }
+
   const fetchMessages = useCallback(async () => {
     setLoadingMsgs(true)
     const r = await fetch(`/api/tickets/${ticket.id}/messages`, {
@@ -535,18 +576,59 @@ function ChatPanel({
 
       {/* Input / aviso */}
       {ticket.status === 'OPEN' ? (
-        <div className="bg-white border-t border-slate-200 px-4 py-3 flex items-end gap-2 shrink-0">
-          <textarea value={text} onChange={e => setText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-            placeholder="Digite uma mensagem... (Enter para enviar)"
-            rows={1}
-            className="flex-1 resize-none bg-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-h-32"
-            style={{ minHeight: '42px' }}
-          />
-          <button onClick={sendMessage} disabled={!text.trim() || sending}
-            className="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-colors shrink-0">
-            <Send size={16} />
-          </button>
+        <div className="bg-white border-t border-slate-200 shrink-0" style={{ position: 'relative' }}>
+          {/* ── Quick replies dropdown ── */}
+          {showQR && qrFiltered.length > 0 && (
+            <div style={{
+              position: 'absolute', bottom: '100%', left: 0, right: 0,
+              background: 'white', border: '1px solid #e2e8f0', borderBottom: 'none',
+              borderRadius: '14px 14px 0 0', boxShadow: '0 -8px 24px rgba(0,0,0,0.08)',
+              maxHeight: 220, overflowY: 'auto', zIndex: 50,
+            }}>
+              <div style={{ padding: '8px 14px 4px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid #f1f5f9' }}>
+                <Zap size={12} style={{ color: '#7c3aed' }} />
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#7c3aed' }}>Respostas rápidas</span>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: 'auto' }}>↑↓ navegar · Enter inserir · Esc fechar</span>
+              </div>
+              {qrFiltered.map((qr, idx) => (
+                <button key={qr.id} onClick={() => applyQuickReply(qr)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
+                    padding: '10px 14px', border: 'none', textAlign: 'left', cursor: 'pointer',
+                    background: idx === qrIndex ? '#f5f3ff' : 'transparent',
+                    borderBottom: idx < qrFiltered.length - 1 ? '1px solid #f8fafc' : 'none',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={() => setQrIndex(idx)}
+                >
+                  <span style={{
+                    flexShrink: 0, background: '#ede9fe', color: '#6d28d9',
+                    borderRadius: 7, padding: '2px 9px', fontSize: '0.8rem',
+                    fontFamily: 'monospace', fontWeight: 700,
+                  }}>/{qr.name}</span>
+                  <span style={{
+                    fontSize: '0.8125rem', color: '#475569', lineHeight: 1.45,
+                    overflow: 'hidden', display: '-webkit-box',
+                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                  }}>{qr.message}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="px-4 py-3 flex items-end gap-2">
+            <textarea value={text} onChange={e => handleTextChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Digite uma mensagem ou / para respostas rápidas..."
+              rows={1}
+              className="flex-1 resize-none bg-slate-100 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-h-32"
+              style={{ minHeight: '42px' }}
+            />
+            <button onClick={sendMessage} disabled={!text.trim() || sending}
+              className="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-colors shrink-0">
+              <Send size={16} />
+            </button>
+          </div>
         </div>
       ) : ticket.status === 'PENDING' ? (
         <div className="bg-amber-50 border-t border-amber-100 px-4 py-3 text-center shrink-0">
