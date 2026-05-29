@@ -34,3 +34,29 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ contacts, count, hasMore: (page - 1) * pageSize + pageSize < count })
 }
+
+export async function POST(req: NextRequest) {
+  if (!getTokenFromRequest(req)) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+  const body = await req.json()
+  const { name, number, company, observation, category, role } = body
+
+  if (!number?.trim()) return NextResponse.json({ error: 'Número é obrigatório' }, { status: 400 })
+  if (!name?.trim())   return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
+
+  // Normaliza o número (remove espaços, hífens, parênteses)
+  const cleanNumber = String(number).replace(/[\s\-().+]/g, '')
+
+  const contact = await prisma.contact.create({
+    data: {
+      name:        name.trim(),
+      number:      cleanNumber,
+      company:     company?.trim()     || null,
+      observation: observation?.trim() || null,
+      category:    category            || null,
+      role:        role?.trim()        || null,
+    },
+  })
+
+  return NextResponse.json(contact, { status: 201 })
+}

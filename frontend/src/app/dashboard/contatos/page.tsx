@@ -1,7 +1,20 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { Search, User, Users } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  Search, User, Users, UserPlus, X, Loader2,
+  AlertCircle, Phone, Building2, Tag, Briefcase,
+  StickyNote, Save,
+} from 'lucide-react'
 import s from '../dashboard.module.css'
+
+const CATEGORIES = ['Consumidor', 'Zweb', 'Clipp Pro', 'Gdor', 'Contador'] as const
+const CATEGORY_COLORS: Record<string, string> = {
+  'Consumidor': '#6366f1',
+  'Zweb':       '#0ea5e9',
+  'Clipp Pro':  '#10b981',
+  'Gdor':       '#f59e0b',
+  'Contador':   '#ec4899',
+}
 
 interface Contact {
   id: number; name: string; number: string
@@ -11,22 +24,26 @@ interface Contact {
 
 export default function ContatosPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
-  const [count, setCount] = useState(0)
-  const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [page, setPage] = useState(1)
+  const [count, setCount]       = useState(0)
+  const [search, setSearch]     = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [page, setPage]         = useState(1)
+  const [showNew, setShowNew]   = useState(false)
+
+  const token = () => typeof window !== 'undefined' ? localStorage.getItem('token') ?? '' : ''
 
   const load = async (q: string, p: number) => {
     setLoading(true)
-    const token = localStorage.getItem('token')
-    const r = await fetch(`/api/contacts?search=${q}&pageNumber=${p}`, { headers: { Authorization: `Bearer ${token}` } })
+    const r = await fetch(`/api/contacts?search=${q}&pageNumber=${p}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
     const d = await r.json()
     setContacts(d.contacts || [])
     setCount(d.count || 0)
     setLoading(false)
   }
 
-  useEffect(() => { load(search, page) }, [])
+  useEffect(() => { load('', 1) }, []) // eslint-disable-line
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1); load(v, 1) }
 
@@ -34,14 +51,22 @@ export default function ContatosPage() {
     <div className={s.container}>
       <div className={s.pageHeader}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div className={s.pageIconBox}>
-            <Users size={22} />
-          </div>
+          <div className={s.pageIconBox}><Users size={22} /></div>
           <div>
             <h1 className={s.pageTitle}>Contatos</h1>
             <p className={s.pageSubtitle}>{count.toLocaleString()} contatos cadastrados</p>
           </div>
         </div>
+
+        {/* ── Botão Novo Contato ── */}
+        <button
+          onClick={() => setShowNew(true)}
+          className={`${s.btn} ${s.btnPrimary}`}
+          style={{ gap: 8 }}
+        >
+          <UserPlus size={16} />
+          Novo contato
+        </button>
       </div>
 
       {/* Busca */}
@@ -98,7 +123,9 @@ export default function ContatosPage() {
             </div>
           ))}
           {contacts.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '48px 20px', color: '#94a3b8' }}>Nenhum contato encontrado</div>
+            <div style={{ textAlign: 'center', padding: '48px 20px', color: '#94a3b8' }}>
+              Nenhum contato encontrado
+            </div>
           )}
         </div>
       )}
@@ -118,6 +145,228 @@ export default function ContatosPage() {
           </button>
         </div>
       )}
+
+      {/* ══════════ MODAL Novo Contato ══════════ */}
+      {showNew && (
+        <NewContactModal
+          token={token()}
+          onClose={() => setShowNew(false)}
+          onSaved={() => { setShowNew(false); load(search, page) }}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ════════════════════════════════════════════════
+   Modal de Cadastro de Novo Contato
+════════════════════════════════════════════════ */
+function NewContactModal({ token, onClose, onSaved }: {
+  token: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [name,        setName]        = useState('')
+  const [number,      setNumber]      = useState('')
+  const [company,     setCompany]     = useState('')
+  const [category,    setCategory]    = useState('')
+  const [role,        setRole]        = useState('')
+  const [observation, setObservation] = useState('')
+  const [saving,      setSaving]      = useState(false)
+  const [error,       setError]       = useState('')
+
+  const numberRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    numberRef.current?.focus()
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [onClose])
+
+  // Formata enquanto digita: (64) 9 9999-9999
+  function handleNumberChange(raw: string) {
+    const digits = raw.replace(/\D/g, '').slice(0, 13)
+    let fmt = digits
+    if (digits.length > 2)  fmt = `(${digits.slice(0,2)}) ${digits.slice(2)}`
+    if (digits.length > 7)  fmt = `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`
+    if (digits.length > 11) fmt = `(${digits.slice(0,2)}) ${digits.slice(2,3)} ${digits.slice(3,7)}-${digits.slice(7)}`
+    setNumber(fmt)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+
+    const cleanNumber = number.replace(/\D/g, '')
+    if (!name.trim())          { setError('Nome é obrigatório.'); return }
+    if (cleanNumber.length < 10) { setError('Número inválido. Use DDD + número (ex: 64 9 9999-9999).'); return }
+
+    setSaving(true)
+    const r = await fetch('/api/contacts', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        name: name.trim(), number: cleanNumber,
+        company: company.trim() || null,
+        category: category || null,
+        role: role.trim() || null,
+        observation: observation.trim() || null,
+      }),
+    })
+    setSaving(false)
+    if (!r.ok) { const d = await r.json(); setError(d.error || 'Erro ao cadastrar.'); return }
+    onSaved()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+
+        {/* header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <UserPlus size={18} className="text-indigo-600" />
+            <h2 className="font-semibold text-slate-800">Novo contato</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+
+          {/* número WhatsApp */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <Phone size={11} /> Número WhatsApp <span className="text-red-400 normal-case font-normal">* obrigatório</span>
+            </label>
+            <input
+              ref={numberRef}
+              type="tel"
+              value={number}
+              onChange={e => handleNumberChange(e.target.value)}
+              placeholder="(64) 9 9999-9999"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            />
+            <p className="text-xs text-slate-400 mt-1">Digite somente o número com DDD, sem o +55</p>
+          </div>
+
+          {/* nome */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <User size={11} /> Nome <span className="text-red-400 normal-case font-normal">* obrigatório</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Nome completo"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
+
+          {/* empresa */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <Building2 size={11} /> Empresa
+            </label>
+            <input
+              type="text"
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              placeholder="Nome da empresa (opcional)"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
+
+          {/* categoria */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <Tag size={11} /> Categoria
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(c => c === cat ? '' : cat)}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all"
+                  style={category === cat
+                    ? { backgroundColor: CATEGORY_COLORS[cat], borderColor: CATEGORY_COLORS[cat], color: '#fff' }
+                    : { backgroundColor: 'transparent', borderColor: CATEGORY_COLORS[cat] + '60', color: CATEGORY_COLORS[cat] }
+                  }
+                >
+                  {cat}
+                </button>
+              ))}
+              {category && (
+                <button type="button" onClick={() => setCategory('')}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium border-2 border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-500 transition-colors">
+                  ✕ Limpar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* cargo */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <Briefcase size={11} /> Cargo
+            </label>
+            <input
+              type="text"
+              value={role}
+              onChange={e => setRole(e.target.value)}
+              placeholder="Ex: Gerente, Fiscal de caixa, Colaborador..."
+              list="role-suggestions-new"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            />
+            <datalist id="role-suggestions-new">
+              {['Gerente', 'Fiscal de caixa', 'Gestor', 'Colaborador', 'Diretor', 'Supervisor', 'Analista', 'Técnico'].map(s => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+          </div>
+
+          {/* observações */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <StickyNote size={11} /> Observações
+            </label>
+            <textarea
+              value={observation}
+              onChange={e => setObservation(e.target.value)}
+              placeholder="Anotações internas sobre o cliente..."
+              rows={3}
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 resize-none"
+            />
+          </div>
+
+          {/* erro */}
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-sm text-red-600">
+              <AlertCircle size={14} className="shrink-0" /> {error}
+            </div>
+          )}
+
+          {/* botões */}
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-4 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-60">
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {saving ? 'Cadastrando...' : 'Cadastrar contato'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
