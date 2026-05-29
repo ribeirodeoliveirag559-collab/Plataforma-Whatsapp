@@ -580,6 +580,7 @@ function EditContactModal({
   onSaved: (c: Contact) => void
 }) {
   const [name,        setName]        = useState(contact.name || '')
+  const [company,     setCompany]     = useState(contact.company || '')
   const [observation, setObservation] = useState(contact.observation || '')
   const [category,    setCategory]    = useState(contact.category || '')
   const [role,        setRole]        = useState(contact.role || '')
@@ -601,7 +602,7 @@ function EditContactModal({
     const r = await fetch(`/api/contacts/${contact.id}`, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: name.trim(), observation: observation.trim() || null, category: category || null, role: role.trim() || null }),
+      body: JSON.stringify({ name: name.trim(), company: company.trim() || null, observation: observation.trim() || null, category: category || null, role: role.trim() || null }),
     })
     setSaving(false)
     if (!r.ok) { const e = await r.json(); setError(e.error || 'Erro ao salvar.'); return }
@@ -639,6 +640,20 @@ function EditContactModal({
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Nome completo"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
+
+          {/* empresa */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <Building2 size={11} /> Empresa
+            </label>
+            <input
+              type="text"
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              placeholder="Nome da empresa (deixe vazio se não tiver)"
               className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
             />
           </div>
