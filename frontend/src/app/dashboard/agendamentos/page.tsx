@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   CalendarClock, Search, X, CheckCircle2, Clock, Ban,
-  Send, ChevronRight, Loader2, AlertCircle, Plus
+  Send, ChevronRight, Loader2, AlertCircle, Plus, Pencil, Save,
 } from 'lucide-react'
 
 /* ─── tipos ─── */
@@ -59,6 +59,9 @@ export default function AgendamentosPage() {
   const [items,   setItems]   = useState<ScheduledItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter,  setFilter]  = useState<'ALL' | 'PENDING' | 'SENT' | 'CANCELLED'>('ALL')
+
+  /* edição */
+  const [editingItem, setEditingItem] = useState<ScheduledItem | null>(null)
 
   /* formulário */
   const [showForm,       setShowForm]       = useState(false)
@@ -335,15 +338,24 @@ export default function AgendamentosPage() {
                       </div>
                     </div>
 
-                    {/* ação */}
+                    {/* ações PENDING */}
                     {item.status === 'PENDING' && (
-                      <button
-                        onClick={() => handleCancel(item.id)}
-                        title="Cancelar agendamento"
-                        className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                      >
-                        <X size={16} />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setEditingItem(item)}
+                          title="Editar agendamento"
+                          className="p-1.5 rounded-lg text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => handleCancel(item.id)}
+                          title="Cancelar agendamento"
+                          className="p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -524,6 +536,150 @@ export default function AgendamentosPage() {
           </div>
         </div>
       )}
+
+      {/* ══════════ MODAL de edição ══════════ */}
+      {editingItem && (
+        <EditScheduleModal
+          item={editingItem}
+          token={token ?? ''}
+          onClose={() => setEditingItem(null)}
+          onSaved={updated => {
+            setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
+            setEditingItem(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════
+   Modal de edição de agendamento
+══════════════════════════════════════════════════════ */
+function EditScheduleModal({
+  item, token, onClose, onSaved,
+}: {
+  item: ScheduledItem
+  token: string
+  onClose: () => void
+  onSaved: (updated: ScheduledItem) => void
+}) {
+  // converte ISO para formato datetime-local
+  function toLocal(iso: string) {
+    const d = new Date(iso)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
+  function minDatetime() {
+    const d = new Date(); d.setMinutes(d.getMinutes() + 1)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
+  const [message,     setMessage]     = useState(item.message)
+  const [scheduledAt, setScheduledAt] = useState(toLocal(item.scheduledAt))
+  const [saving,      setSaving]      = useState(false)
+  const [error,       setError]       = useState('')
+
+  // ESC fecha
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [onClose])
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (!message.trim())  { setError('A mensagem não pode ficar vazia.'); return }
+    if (!scheduledAt)     { setError('Escolha uma nova data e horário.'); return }
+    if (new Date(scheduledAt) <= new Date()) { setError('O horário precisa ser no futuro.'); return }
+
+    setSaving(true)
+    const r = await fetch(`/api/scheduled/${item.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({ message: message.trim(), scheduledAt: new Date(scheduledAt).toISOString() }),
+    })
+    setSaving(false)
+    if (!r.ok) { const e = await r.json(); setError(e.error || 'Erro ao salvar.'); return }
+    const updated = await r.json()
+    onSaved(updated)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+
+        {/* header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Pencil size={17} className="text-indigo-600" />
+            <div>
+              <h2 className="font-semibold text-slate-800">Editar agendamento</h2>
+              <p className="text-xs text-slate-500">{item.contact.name} · {item.contact.number}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSave} className="p-6 space-y-5">
+
+          {/* mensagem */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Mensagem inicial
+            </label>
+            <textarea
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              rows={4}
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 resize-none"
+            />
+            <p className="text-xs text-slate-400 mt-1">{message.length} caracteres</p>
+          </div>
+
+          {/* data e hora */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Nova data e horário
+            </label>
+            <input
+              type="datetime-local"
+              value={scheduledAt}
+              min={minDatetime()}
+              onChange={e => setScheduledAt(e.target.value)}
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400"
+            />
+          </div>
+
+          {/* erro */}
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-sm text-red-600">
+              <AlertCircle size={15} className="shrink-0" /> {error}
+            </div>
+          )}
+
+          {/* botões */}
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-4 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-60">
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {saving ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
