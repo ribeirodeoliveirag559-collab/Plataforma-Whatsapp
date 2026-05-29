@@ -50,11 +50,13 @@ export async function GET(req: NextRequest) {
       }
     }
   } else if (status === 'OPEN') {
-    where = (showAll || isManager)
+    // Por padrão mostra só os tickets do próprio usuário.
+    // showAll=true (toggle explícito) ou isManager+showAll libera todos.
+    where = showAll
       ? { status: 'OPEN' }
       : { status: 'OPEN', userId: payload.id }
   } else if (status === 'CLOSED') {
-    where = (showAll || isManager)
+    where = showAll
       ? { status: 'CLOSED' }
       : { status: 'CLOSED', userId: payload.id }
   } else if (status) {

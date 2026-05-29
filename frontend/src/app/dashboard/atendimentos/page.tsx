@@ -167,7 +167,7 @@ export default function AtendimentosPage() {
             ))}
           </div>
 
-          {/* Toggle "ver todas" — só para OPEN e CLOSED */}
+          {/* Toggle ver todas / ver só as minhas — OPEN e CLOSED */}
           {(tab === 'OPEN' || tab === 'CLOSED') && (
             <button
               onClick={() => setShowAll(v => !v)}
@@ -177,8 +177,8 @@ export default function AtendimentosPage() {
                   : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
               }`}
             >
-              {showAll ? <Eye size={13} /> : <EyeOff size={13} />}
-              {showAll ? 'Mostrando todas as conversas' : 'Ver apenas as minhas'}
+              {showAll ? <EyeOff size={13} /> : <Eye size={13} />}
+              {showAll ? 'Ver apenas as minhas' : 'Ver todas as conversas'}
             </button>
           )}
         </div>
