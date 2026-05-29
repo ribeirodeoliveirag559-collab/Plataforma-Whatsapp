@@ -212,7 +212,7 @@ export default function AgendamentosPage() {
 
   /* ══════════════════════════════════ RENDER ══════════════════════════════════ */
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col min-h-full bg-slate-50">
 
       {/* ── cabeçalho ── */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
@@ -253,7 +253,7 @@ export default function AgendamentosPage() {
       </div>
 
       {/* ── lista ── */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
+      <div className="flex-1 px-6 pb-10">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={28} className="animate-spin text-indigo-400" />
