@@ -71,6 +71,8 @@ model Contact {
   cpf           String?
   cnpj          String?
   observation   String?
+  category      String?   // Consumidor | Zweb | Clipp Pro | Gdor
+  role          String?   // Cargo dentro da empresa
   blacklist     Boolean   @default(false)
   isGroup       Boolean   @default(false)
   gosacId       Int?      @unique

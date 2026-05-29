@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
     prisma.ticket.findMany({
       where,
       include: {
-        contact: { select: { id: true, name: true, number: true, profilePicUrl: true, company: true } },
+        contact: { select: { id: true, name: true, number: true, profilePicUrl: true, company: true, observation: true, category: true, role: true } },
         queue:   { select: { id: true, name: true, color: true } },
         user:    { select: { id: true, name: true, avatar: true } },
       },

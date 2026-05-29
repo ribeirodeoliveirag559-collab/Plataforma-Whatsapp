@@ -5,12 +5,25 @@ import {
   Clock, CheckCircle, MessageSquare, RefreshCw, Send,
   UserCheck, X, ChevronRight, Building2, Phone, Bot,
   ArrowLeftRight, Eye, EyeOff, CalendarClock, Search,
-  Loader2, AlertCircle,
+  Loader2, AlertCircle, Pencil, Save, Tag, Briefcase,
+  StickyNote,
 } from 'lucide-react'
 
 type TicketStatus = 'PENDING' | 'OPEN' | 'CLOSED'
 
-interface Contact { id: number; name: string; number: string; profilePicUrl: string | null; company?: string | null }
+const CATEGORIES = ['Consumidor', 'Zweb', 'Clipp Pro', 'Gdor'] as const
+const CATEGORY_COLORS: Record<string, string> = {
+  'Consumidor': '#6366f1',
+  'Zweb':       '#0ea5e9',
+  'Clipp Pro':  '#10b981',
+  'Gdor':       '#f59e0b',
+}
+
+interface Contact {
+  id: number; name: string; number: string
+  profilePicUrl: string | null; company?: string | null
+  observation?: string | null; category?: string | null; role?: string | null
+}
 interface Queue   { id: number; name: string; color: string }
 interface User    { id: number; name: string; avatar: string | null }
 interface Ticket  {
@@ -97,6 +110,12 @@ export default function AtendimentosPage() {
   const updateSelected = useCallback((t: Ticket) => {
     setSelected(t)
     setTickets(prev => prev.map(p => p.id === t.id ? t : p))
+  }, [])
+
+  // Atualiza contato em todos os tickets da lista após edição
+  const handleContactUpdated = useCallback((c: Contact) => {
+    setSelected(prev => prev ? { ...prev, contact: c } : null)
+    setTickets(prev => prev.map(t => t.contact.id === c.id ? { ...t, contact: c } : t))
   }, [])
 
   const currentTab = STATUS_TABS.find(t => t.key === tab)!
@@ -219,6 +238,7 @@ export default function AtendimentosPage() {
             onClose={() => setSelected(null)}
             onAction={afterAction}
             onUpdate={updateSelected}
+            onContactUpdated={handleContactUpdated}
           />
         ) : (
           <EmptyState tab={tab} />
@@ -300,19 +320,21 @@ function TicketRow({ ticket, active, onClick }: { ticket: Ticket; active: boolea
 
 // ─────────────────────────────────────────────────────
 function ChatPanel({
-  ticket, queues, token, onClose, onAction, onUpdate,
+  ticket, queues, token, onClose, onAction, onUpdate, onContactUpdated,
 }: {
   ticket: Ticket; queues: Queue[]; token: string
   onClose: () => void
   onAction: (t: Ticket) => void
   onUpdate: (t: Ticket) => void
+  onContactUpdated: (c: Contact) => void
 }) {
-  const [messages, setMessages]     = useState<Message[]>([])
-  const [loadingMsgs, setLoadingMsgs] = useState(true)
-  const [text, setText]             = useState('')
-  const [sending, setSending]       = useState(false)
-  const [actioning, setActioning]   = useState(false)
+  const [messages, setMessages]         = useState<Message[]>([])
+  const [loadingMsgs, setLoadingMsgs]   = useState(true)
+  const [text, setText]                 = useState('')
+  const [sending, setSending]           = useState(false)
+  const [actioning, setActioning]       = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
+  const [showEditContact, setShowEditContact] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const fetchMessages = useCallback(async () => {
@@ -374,13 +396,32 @@ function ChatPanel({
           {ini}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-slate-800 text-sm">
-            {ticket.contact.name || ticket.contact.number}
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-slate-800 text-sm">
+              {ticket.contact.name || ticket.contact.number}
+            </span>
+            <button
+              onClick={() => setShowEditContact(true)}
+              title="Editar contato"
+              className="p-0.5 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+            >
+              <Pencil size={13} />
+            </button>
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
             <span className="flex items-center gap-1"><Phone size={10} />{ticket.contact.number}</span>
             {ticket.contact.company && (
               <span className="flex items-center gap-1"><Building2 size={10} />{ticket.contact.company}</span>
+            )}
+            {ticket.contact.category && (
+              <span className="font-medium" style={{ color: CATEGORY_COLORS[ticket.contact.category] ?? '#6366f1' }}>
+                {ticket.contact.category}
+              </span>
+            )}
+            {ticket.contact.role && (
+              <span className="flex items-center gap-1 text-slate-400">
+                <Briefcase size={10} />{ticket.contact.role}
+              </span>
             )}
           </div>
         </div>
@@ -511,6 +552,180 @@ function ChatPanel({
           <p className="text-slate-400 text-sm">Atendimento encerrado</p>
         </div>
       )}
+
+      {/* Modal editar contato */}
+      {showEditContact && (
+        <EditContactModal
+          contact={ticket.contact}
+          token={token}
+          onClose={() => setShowEditContact(false)}
+          onSaved={updated => {
+            setShowEditContact(false)
+            onContactUpdated(updated)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────
+function EditContactModal({
+  contact, token, onClose, onSaved,
+}: {
+  contact: Contact
+  token: string
+  onClose: () => void
+  onSaved: (c: Contact) => void
+}) {
+  const [name,        setName]        = useState(contact.name || '')
+  const [observation, setObservation] = useState(contact.observation || '')
+  const [category,    setCategory]    = useState(contact.category || '')
+  const [role,        setRole]        = useState(contact.role || '')
+  const [saving,      setSaving]      = useState(false)
+  const [error,       setError]       = useState('')
+
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [onClose])
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (!name.trim()) { setError('O nome não pode ficar vazio.'); return }
+
+    setSaving(true)
+    const r = await fetch(`/api/contacts/${contact.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: name.trim(), observation: observation.trim() || null, category: category || null, role: role.trim() || null }),
+    })
+    setSaving(false)
+    if (!r.ok) { const e = await r.json(); setError(e.error || 'Erro ao salvar.'); return }
+    const updated = await r.json()
+    onSaved({ ...contact, ...updated })
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+
+        {/* header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Pencil size={17} className="text-indigo-600" />
+            <h2 className="font-semibold text-slate-800">Editar contato</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSave} className="p-6 space-y-4">
+
+          {/* nome */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Nome do cliente
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Nome completo"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
+
+          {/* categoria */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <Tag size={11} /> Categoria
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(c => c === cat ? '' : cat)}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all"
+                  style={category === cat
+                    ? { backgroundColor: CATEGORY_COLORS[cat], borderColor: CATEGORY_COLORS[cat], color: '#fff' }
+                    : { backgroundColor: 'transparent', borderColor: CATEGORY_COLORS[cat] + '60', color: CATEGORY_COLORS[cat] }
+                  }
+                >
+                  {cat}
+                </button>
+              ))}
+              {category && (
+                <button type="button" onClick={() => setCategory('')}
+                  className="px-3 py-1.5 rounded-full text-xs font-medium border-2 border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-500 transition-colors">
+                  ✕ Limpar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* cargo */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <Briefcase size={11} /> Cargo
+            </label>
+            <input
+              type="text"
+              value={role}
+              onChange={e => setRole(e.target.value)}
+              placeholder="Ex: Gerente, Fiscal de caixa, Colaborador..."
+              list="role-suggestions"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            />
+            <datalist id="role-suggestions">
+              {['Gerente', 'Fiscal de caixa', 'Gestor', 'Colaborador', 'Diretor', 'Supervisor', 'Analista', 'Técnico'].map(s => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+          </div>
+
+          {/* observações */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <StickyNote size={11} /> Observações
+            </label>
+            <textarea
+              value={observation}
+              onChange={e => setObservation(e.target.value)}
+              placeholder="Anotações internas sobre o cliente..."
+              rows={3}
+              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 resize-none"
+            />
+          </div>
+
+          {/* erro */}
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-sm text-red-600">
+              <AlertCircle size={14} className="shrink-0" /> {error}
+            </div>
+          )}
+
+          {/* botões */}
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-4 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-60">
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
