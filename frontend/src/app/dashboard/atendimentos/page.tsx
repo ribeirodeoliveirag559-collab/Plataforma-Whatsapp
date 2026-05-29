@@ -4,7 +4,8 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   Clock, CheckCircle, MessageSquare, RefreshCw, Send,
   UserCheck, X, ChevronRight, Building2, Phone, Bot,
-  ArrowLeftRight, Eye, EyeOff,
+  ArrowLeftRight, Eye, EyeOff, CalendarClock, Search,
+  Loader2, AlertCircle,
 } from 'lucide-react'
 
 type TicketStatus = 'PENDING' | 'OPEN' | 'CLOSED'
@@ -54,6 +55,7 @@ export default function AtendimentosPage() {
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [showAll, setShowAll]   = useState(false)   // toggle "ver todas"
   const [queues, setQueues]     = useState<Queue[]>([])
+  const [showSchedule, setShowSchedule] = useState(false)
 
   const token = () => localStorage.getItem('token') ?? ''
 
@@ -117,10 +119,20 @@ export default function AtendimentosPage() {
         <div className="px-4 pt-4 pb-3 border-b border-slate-100 space-y-3">
           <div className="flex items-center justify-between">
             <h1 className="text-lg font-bold text-slate-800">Atendimentos</h1>
-            <button onClick={() => fetchTickets(tab, showAll)}
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
-              <RefreshCw size={15} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowSchedule(true)}
+                title="Agendar atendimento"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-medium transition-colors"
+              >
+                <CalendarClock size={14} />
+                <span>Agendar</span>
+              </button>
+              <button onClick={() => fetchTickets(tab, showAll)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors">
+                <RefreshCw size={15} />
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
@@ -212,6 +224,15 @@ export default function AtendimentosPage() {
           <EmptyState tab={tab} />
         )}
       </main>
+
+      {/* ══ MODAL Agendar Atendimento ══ */}
+      {showSchedule && (
+        <ScheduleModal
+          token={token()}
+          queues={queues}
+          onClose={() => setShowSchedule(false)}
+        />
+      )}
     </div>
   )
 }
@@ -490,6 +511,222 @@ function ChatPanel({
           <p className="text-slate-400 text-sm">Atendimento encerrado</p>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────
+function ScheduleModal({ token, queues, onClose }: { token: string; queues: Queue[]; onClose: () => void }) {
+  const [contactSearch,    setContactSearch]    = useState('')
+  const [contacts,         setContacts]         = useState<Contact[]>([])
+  const [selectedContact,  setSelectedContact]  = useState<Contact | null>(null)
+  const [showDropdown,     setShowDropdown]     = useState(false)
+  const [message,          setMessage]          = useState('')
+  const [scheduledAt,      setScheduledAt]      = useState('')
+  const [queueId,          setQueueId]          = useState('')
+  const [saving,           setSaving]           = useState(false)
+  const [error,            setError]            = useState('')
+  const [done,             setDone]             = useState(false)
+
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const searchRef   = useRef<HTMLInputElement>(null)
+
+  // busca contatos com debounce
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (!contactSearch.trim()) { setContacts([]); return }
+      const r = await fetch(`/api/contacts?search=${encodeURIComponent(contactSearch)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const d = await r.json()
+      setContacts(Array.isArray(d.contacts) ? d.contacts : [])
+      setShowDropdown(true)
+    }, 280)
+    return () => clearTimeout(t)
+  }, [contactSearch, token])
+
+  // fecha dropdown ao clicar fora
+  useEffect(() => {
+    const fn = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setShowDropdown(false)
+    }
+    document.addEventListener('mousedown', fn)
+    return () => document.removeEventListener('mousedown', fn)
+  }, [])
+
+  // ESC fecha modal
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [onClose])
+
+  function minDatetime() {
+    const d = new Date(); d.setMinutes(d.getMinutes() + 1)
+    return d.toISOString().slice(0, 16)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault(); setError('')
+    if (!selectedContact)           { setError('Selecione um contato.'); return }
+    if (!message.trim())            { setError('Digite a mensagem inicial.'); return }
+    if (!scheduledAt)               { setError('Escolha data e horário.'); return }
+    if (new Date(scheduledAt) <= new Date()) { setError('O horário precisa ser no futuro.'); return }
+
+    setSaving(true)
+    const r = await fetch('/api/scheduled', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        contactId: selectedContact.id, message: message.trim(),
+        scheduledAt: new Date(scheduledAt).toISOString(),
+        queueId: queueId || null,
+      }),
+    })
+    setSaving(false)
+    if (!r.ok) { const e = await r.json(); setError(e.error || 'Erro ao agendar.'); return }
+    setDone(true)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+
+        {/* header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <CalendarClock size={18} className="text-indigo-600" />
+            <h2 className="font-semibold text-slate-800">Agendar atendimento</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        {done ? (
+          /* ── sucesso ── */
+          <div className="px-6 py-10 flex flex-col items-center gap-3 text-center">
+            <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
+              <CalendarClock size={26} className="text-green-600" />
+            </div>
+            <p className="font-semibold text-slate-800">Agendamento criado!</p>
+            <p className="text-sm text-slate-500">
+              A conversa com <strong>{selectedContact?.name}</strong> será iniciada automaticamente no horário programado.
+            </p>
+            <div className="flex gap-2 mt-2">
+              <button onClick={onClose}
+                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors">
+                Fechar
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ── formulário ── */
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+            {/* contato */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Contato <span className="text-red-400">*</span>
+              </label>
+              <div className="relative" ref={dropdownRef}>
+                <div className={`flex items-center gap-2 border rounded-xl px-3 py-2.5 transition-colors ${
+                  selectedContact ? 'border-indigo-300 bg-indigo-50' : 'border-slate-300 focus-within:border-indigo-400'
+                }`}>
+                  <Search size={15} className="text-slate-400 shrink-0" />
+                  {selectedContact ? (
+                    <>
+                      <span className="flex-1 text-sm font-medium text-slate-800">{selectedContact.name}</span>
+                      <span className="text-xs text-slate-500">{selectedContact.number}</span>
+                      <button type="button" onClick={() => { setSelectedContact(null); setContactSearch(''); setTimeout(() => searchRef.current?.focus(), 50) }}
+                        className="text-slate-400 hover:text-red-500 ml-1"><X size={14} /></button>
+                    </>
+                  ) : (
+                    <input ref={searchRef} type="text" value={contactSearch}
+                      onChange={e => { setContactSearch(e.target.value); setShowDropdown(true) }}
+                      placeholder="Buscar por nome ou número..."
+                      className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-400"
+                    />
+                  )}
+                </div>
+                {showDropdown && contacts.length > 0 && !selectedContact && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-10 max-h-44 overflow-y-auto">
+                    {contacts.map(c => (
+                      <button key={c.id} type="button" onClick={() => { setSelectedContact(c); setContactSearch(c.name); setShowDropdown(false) }}
+                        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-indigo-50 text-left transition-colors">
+                        <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                          <span className="text-indigo-700 text-xs font-bold">{c.name[0]?.toUpperCase()}</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-slate-800">{c.name}</p>
+                          <p className="text-xs text-slate-500">{c.number}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* departamento */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Departamento <span className="text-slate-400 text-xs">(opcional)</span>
+              </label>
+              <select value={queueId} onChange={e => setQueueId(e.target.value)}
+                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 bg-white">
+                <option value="">Sem departamento</option>
+                {queues.map(q => <option key={q.id} value={q.id}>{q.name}</option>)}
+              </select>
+            </div>
+
+            {/* mensagem */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Mensagem inicial <span className="text-red-400">*</span>
+              </label>
+              <textarea value={message} onChange={e => setMessage(e.target.value)}
+                placeholder="Olá! Entro em contato para..." rows={3}
+                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 resize-none"
+              />
+            </div>
+
+            {/* data e hora */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                Data e horário <span className="text-red-400">*</span>
+              </label>
+              <input type="datetime-local" value={scheduledAt} min={minDatetime()}
+                onChange={e => setScheduledAt(e.target.value)}
+                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400"
+              />
+            </div>
+
+            {/* erro */}
+            {error && (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-sm text-red-600">
+                <AlertCircle size={15} className="shrink-0" /> {error}
+              </div>
+            )}
+
+            {/* botões */}
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onClose}
+                className="flex-1 px-4 py-2.5 border border-slate-300 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-colors">
+                Cancelar
+              </button>
+              <button type="submit" disabled={saving}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-60">
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <CalendarClock size={15} />}
+                {saving ? 'Agendando...' : 'Agendar'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   )
 }
