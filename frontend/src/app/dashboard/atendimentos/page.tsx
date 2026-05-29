@@ -11,12 +11,13 @@ import {
 
 type TicketStatus = 'PENDING' | 'OPEN' | 'CLOSED'
 
-const CATEGORIES = ['Consumidor', 'Zweb', 'Clipp Pro', 'Gdor'] as const
+const CATEGORIES = ['Consumidor', 'Zweb', 'Clipp Pro', 'Gdor', 'Contador'] as const
 const CATEGORY_COLORS: Record<string, string> = {
   'Consumidor': '#6366f1',
   'Zweb':       '#0ea5e9',
   'Clipp Pro':  '#10b981',
   'Gdor':       '#f59e0b',
+  'Contador':   '#ec4899',
 }
 
 interface Contact {
