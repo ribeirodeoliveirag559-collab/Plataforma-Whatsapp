@@ -1,13 +1,14 @@
 'use client'
 import Link from 'next/link'
-import { Users, Building2, Shield, Zap, Smartphone } from 'lucide-react'
+import { Users, Building2, Shield, Zap, Smartphone, Bot } from 'lucide-react'
 import s from '../dashboard.module.css'
 
 const cards = [
-  { href: '/dashboard/admin/whatsapp',          label: 'WhatsApp',          desc: 'Conectar número real + porteiro IA (OpenAI)',      icon: Smartphone, accent: '#22c55e' },
-  { href: '/dashboard/admin/usuarios',          label: 'Usuários',          desc: 'Criar e gerenciar logins dos colaboradores',       icon: Users,      accent: '#6366f1' },
-  { href: '/dashboard/admin/departamentos',     label: 'Departamentos',     desc: 'Adicionar e editar departamentos e filas',          icon: Building2,  accent: '#0ea5e9' },
-  { href: '/dashboard/admin/respostas-rapidas', label: 'Respostas Rápidas', desc: 'Mensagens pré-editadas acionadas com / no chat',    icon: Zap,        accent: '#7c3aed' },
+  { href: '/dashboard/admin/whatsapp',          label: 'WhatsApp',          desc: 'Conectar número real + QR code',                   icon: Smartphone, accent: '#22c55e' },
+  { href: '/dashboard/admin/porteiro',          label: 'Porteiro IA',       desc: 'Nome, empresa, horários e instruções do assistente', icon: Bot,        accent: '#7c3aed' },
+  { href: '/dashboard/admin/usuarios',          label: 'Usuários',          desc: 'Criar e gerenciar logins dos colaboradores',        icon: Users,      accent: '#6366f1' },
+  { href: '/dashboard/admin/departamentos',     label: 'Departamentos',     desc: 'Adicionar e editar departamentos e filas',           icon: Building2,  accent: '#0ea5e9' },
+  { href: '/dashboard/admin/respostas-rapidas', label: 'Respostas Rápidas', desc: 'Mensagens pré-editadas acionadas com / no chat',     icon: Zap,        accent: '#f59e0b' },
 ]
 
 export default function AdminPage() {

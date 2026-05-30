@@ -1,17 +1,10 @@
 /**
  * Porteiro IA — OpenAI GPT-4o-mini
- *
- * Recebe o histórico de mensagens do ticket e decide:
- *  - Coletar mais informações do cliente (responde em texto)
- *  - Rotear para um departamento (retorna JSON de roteamento)
- *
- * Env vars:
- *   OPENAI_API_KEY = sk-...
- *   PORTER_ENABLED = true (default: true)
+ * Configurações carregadas do banco (tabela ai_config)
  */
 
 import OpenAI from 'openai'
-import prisma   from './prisma'
+import prisma  from './prisma'
 
 export function isPorterEnabled() {
   return process.env.PORTER_ENABLED !== 'false' && Boolean(process.env.OPENAI_API_KEY)
@@ -25,50 +18,89 @@ export interface PorterResult {
 export async function runPorter(ticketId: number): Promise<PorterResult> {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
-  /* Carrega filas ativas do banco */
-  const queues = await prisma.queue.findMany({
-    where:   { deletedAt: null },
-    select:  { id: true, name: true },
-    orderBy: { order: 'asc' },
-  })
+  /* Carrega config do porteiro + filas ativas em paralelo */
+  const [rawConfig, queues, messages] = await Promise.all([
+    prisma.aIConfig.findFirst(),
+    prisma.queue.findMany({ where: { deletedAt: null }, select: { id: true, name: true }, orderBy: { order: 'asc' } }),
+    prisma.message.findMany({ where: { ticketId, isDeleted: false }, orderBy: { createdAt: 'asc' } }),
+  ])
 
-  /* Carrega histórico completo do ticket */
-  const messages = await prisma.message.findMany({
-    where:   { ticketId, isDeleted: false },
-    orderBy: { createdAt: 'asc' },
-  })
+  /* Valores padrão se ainda não configurou */
+  const cfg = {
+    porterName:         rawConfig?.porterName         || 'Sofia',
+    companyName:        rawConfig?.companyName        || 'nossa empresa',
+    companyCity:        rawConfig?.companyCity        || '',
+    companyDescription: rawConfig?.companyDescription || '',
+    businessHours:      rawConfig?.businessHours      || '',
+    companyAddress:     rawConfig?.companyAddress     || '',
+    companyPhone:       rawConfig?.companyPhone       || '',
+    greetingMessage:    rawConfig?.greetingMessage    || '',
+    additionalRules:    rawConfig?.additionalRules    || '',
+    collectCompany:     rawConfig?.collectCompany     ?? true,
+  }
 
+  /* Histórico de mensagens */
   const history = messages.map(m => ({
     role:    m.fromMe ? ('assistant' as const) : ('user' as const),
     content: m.body || '',
   }))
 
-  const systemPrompt = `Você é a recepcionista virtual da PH Informática, empresa de informática em Itumbiara-GO.
+  /* Monta bloco de informações da empresa */
+  const companyBlock = [
+    `Empresa: ${cfg.companyName}${cfg.companyCity ? ` — ${cfg.companyCity}` : ''}`,
+    cfg.companyDescription && `Descrição: ${cfg.companyDescription}`,
+    cfg.businessHours      && `Horário de atendimento: ${cfg.businessHours}`,
+    cfg.companyAddress     && `Endereço: ${cfg.companyAddress}`,
+    cfg.companyPhone       && `Telefone: ${cfg.companyPhone}`,
+  ].filter(Boolean).join('\n')
 
-SUA MISSÃO: recepcionar o cliente, coletar o nome, entender o motivo do contato e encaminhar para o departamento certo.
+  /* Monta lista de departamentos */
+  const queuesBlock = queues.map(q => `• ID ${q.id} — ${q.name}`).join('\n')
+
+  /* Regra de coleta de empresa */
+  const collectCompanyRule = cfg.collectCompany
+    ? '- Pergunte o nome da empresa (se for pessoa jurídica)'
+    : '- Não precisa perguntar nome da empresa'
+
+  const systemPrompt = `Você é ${cfg.porterName}, a recepcionista virtual da ${cfg.companyName}.
+
+INFORMAÇÕES DA EMPRESA:
+${companyBlock}
 
 DEPARTAMENTOS DISPONÍVEIS:
-${queues.map(q => `• ID ${q.id} — ${q.name}`).join('\n')}
+${queuesBlock}
+
+SUA MISSÃO:
+1. Cumprimentar o cliente cordialmente
+2. Coletar o nome do cliente
+${collectCompanyRule}
+3. Entender o motivo do contato
+4. Encaminhar para o departamento correto
 
 REGRAS DE CONDUTA:
-- Cumprimente com "Olá! 😊 Seja bem-vindo à PH Informática!" na primeira mensagem
-- Colete as informações de forma natural (1 pergunta de cada vez)
-- Pergunte primeiro o nome, depois o motivo
-- Se for empresa, pergunte o nome da empresa
-- Seja objetivo, simpático e use português brasileiro
+- Seja simpático, use linguagem informal mas profissional
+- Colete as informações naturalmente (1 pergunta de cada vez)
 - Quando tiver nome + motivo suficiente, encaminhe — não fique pedindo mais informações
+- Responda SEMPRE em português brasileiro
+- Use emojis com moderação${cfg.additionalRules ? `\n\nINSTRUÇÕES ADICIONAIS:\n${cfg.additionalRules}` : ''}
 
 AO DECIDIR ROTEAR (quando tiver nome + motivo):
 Responda SOMENTE com este JSON (sem texto antes ou depois):
-{"action":"route","queueId":<id>,"clientName":"<nome do cliente>","company":"<nome da empresa ou null>","summary":"<resumo em 1 frase para o atendente>"}
+{"action":"route","queueId":<id>,"clientName":"<nome>","company":"<empresa ou null>","summary":"<resumo em 1 frase para o atendente>"}
 
-Enquanto coleta informações, responda em texto normal.`
+Enquanto coleta informações, responda normalmente em texto.`
+
+  /* Se tem mensagem de saudação personalizada e é a primeira mensagem do cliente */
+  const isFirstMessage = messages.filter(m => !m.fromMe).length === 1
+  if (isFirstMessage && cfg.greetingMessage.trim()) {
+    return { message: cfg.greetingMessage.trim(), route: null }
+  }
 
   const completion = await openai.chat.completions.create({
-    model:      'gpt-4o-mini',
-    max_tokens: 450,
+    model:       'gpt-4o-mini',
+    max_tokens:  450,
     temperature: 0.7,
-    messages:   [
+    messages:    [
       { role: 'system', content: systemPrompt },
       ...history,
     ],
@@ -81,15 +113,14 @@ Enquanto coleta informações, responda em texto normal.`
   if (jsonMatch) {
     try {
       const data = JSON.parse(jsonMatch[0]) as {
-        action: string; queueId: number
-        clientName: string; company: string | null; summary: string
+        queueId: number; clientName: string; company: string | null; summary: string
       }
       const queueName = queues.find(q => q.id === data.queueId)?.name || 'Atendimento'
       return {
         message: `Obrigado, ${data.clientName}! 😊 Vou encaminhar você para nossa equipe de *${queueName}*. Em breve um atendente vai te atender!`,
         route:   { queueId: data.queueId, clientName: data.clientName, company: data.company ?? null, summary: data.summary },
       }
-    } catch { /* fallback para texto */ }
+    } catch { /* fallback */ }
   }
 
   return { message: text, route: null }

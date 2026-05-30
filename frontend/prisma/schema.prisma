@@ -179,6 +179,24 @@ model ScheduledTicket {
   @@map("scheduled_tickets")
 }
 
+model AIConfig {
+  id                 Int      @id @default(autoincrement())
+  porterName         String   @default("Sofia")           // Nome do assistente virtual
+  companyName        String   @default("PH Informática")
+  companyCity        String   @default("Itumbiara-GO")
+  companyDescription String   @default("")                // Serviços, especialidade
+  businessHours      String   @default("")                // Ex: Seg-Sex 8h-18h, Sáb 8h-12h
+  companyAddress     String   @default("")
+  companyPhone       String   @default("")
+  greetingMessage    String   @default("")                // Primeira mensagem (deixe vazio para IA gerar)
+  additionalRules    String   @default("")                // Instruções extras livres
+  collectCompany     Boolean  @default(true)              // Perguntar nome da empresa?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("ai_config")
+}
+
 model QuickReply {
   id        Int      @id @default(autoincrement())
   name      String   @unique  // atalho usado após o /
