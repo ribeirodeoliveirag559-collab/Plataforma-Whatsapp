@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getTokenFromRequest } from '@/lib/auth'
+import { sendText } from '@/lib/evolution'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -35,6 +36,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { body } = await req.json()
   if (!body?.trim()) return NextResponse.json({ error: 'Mensagem vazia' }, { status: 400 })
 
+  // Busca número do contato para enviar pelo WhatsApp
+  const ticket = await prisma.ticket.findUnique({
+    where:   { id: Number(id) },
+    include: { contact: { select: { number: true } } },
+  })
+
   const message = await prisma.message.create({
     data: {
       body,
@@ -51,6 +58,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     where: { id: Number(id) },
     data:  { lastMessage: body, updatedAt: new Date() },
   })
+
+  // Envia pelo WhatsApp real (falha silenciosamente se não configurado)
+  if (ticket?.contact?.number) {
+    sendText(ticket.contact.number, body).catch(err =>
+      console.error('[Evolution] Falha ao enviar mensagem:', err)
+    )
+  }
 
   return NextResponse.json(message, { status: 201 })
 }
