@@ -116,7 +116,8 @@ export async function sendText(number: string, text: string) {
 
 /* ── webhook ────────────────────────────────────────────────── */
 
-export async function setWebhook(webhookUrl: string) {
+export async function setWebhook(webhookUrl: string, webhookSecret?: string) {
+  const webhookHeaders = webhookSecret ? { 'x-webhook-secret': webhookSecret } : undefined
   const res = await fetch(`${BASE}/webhook/set/${INSTANCE}`, {
     method:  'POST',
     headers: headers(),
@@ -127,6 +128,7 @@ export async function setWebhook(webhookUrl: string) {
         webhookByEvents: false,
         webhookBase64:   false,
         events:          ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
+        ...(webhookHeaders && { headers: webhookHeaders }),
       },
     }),
   })

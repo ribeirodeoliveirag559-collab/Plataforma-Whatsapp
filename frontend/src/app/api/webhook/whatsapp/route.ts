@@ -18,9 +18,12 @@ export const maxDuration = 60 // Vercel hobby: 60s
 
 export async function POST(req: NextRequest) {
   /* ── Verificação de segredo (opcional) ── */
-  const secret = new URL(req.url).searchParams.get('secret')
-  if (process.env.WEBHOOK_SECRET && secret !== process.env.WEBHOOK_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (process.env.WEBHOOK_SECRET) {
+    const secretQuery  = new URL(req.url).searchParams.get('secret')
+    const secretHeader = req.headers.get('x-webhook-secret')
+    if (secretQuery !== process.env.WEBHOOK_SECRET && secretHeader !== process.env.WEBHOOK_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
   }
 
   let body: Record<string, unknown>

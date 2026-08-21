@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'set_webhook') {
-    const result = await evolution.setWebhook(webhookUrl)
+    const result = await evolution.setWebhook(webhookUrl, process.env.WEBHOOK_SECRET)
     return NextResponse.json(result)
   }
 
