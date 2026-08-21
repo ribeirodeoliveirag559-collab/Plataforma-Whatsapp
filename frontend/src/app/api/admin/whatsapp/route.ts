@@ -40,7 +40,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!await requireManager(req)) return NextResponse.json({ error: 'Acesso restrito a gestores' }, { status: 403 })
 
-  const { action } = await req.json()
+  const body = await req.json()
+  const { action } = body
   const webhookUrl = `${process.env.NEXT_PUBLIC_URL || req.headers.get('origin') || ''}/api/webhook/whatsapp${process.env.WEBHOOK_SECRET ? `?secret=${process.env.WEBHOOK_SECRET}` : ''}`
 
   if (action === 'create') {
@@ -55,6 +56,11 @@ export async function POST(req: NextRequest) {
 
   if (action === 'logout') {
     const result = await evolution.logoutInstance()
+    return NextResponse.json(result)
+  }
+
+  if (action === 'pairing_code') {
+    const result = await evolution.requestPairingCode(body.phone)
     return NextResponse.json(result)
   }
 

@@ -29,6 +29,9 @@ export default function WhatsAppAdminPage() {
   const [copied,      setCopied]      = useState(false)
   const [showCleanup, setShowCleanup] = useState(false)
   const [cleanupResult, setCleanupResult] = useState<Record<string, number> | null>(null)
+  const [connectTab,  setConnectTab]  = useState<'qr' | 'code'>('qr')
+  const [pairingPhone, setPairingPhone] = useState('')
+  const [pairingCode,  setPairingCode]  = useState('')
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -68,6 +71,20 @@ export default function WhatsAppAdminPage() {
     })
     setActioning(false)
     fetchStatus()
+  }
+
+  const requestPairingCode = async () => {
+    if (!pairingPhone) return
+    setActioning(true)
+    setPairingCode('')
+    const r = await fetch('/api/admin/whatsapp', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'pairing_code', phone: pairingPhone }),
+    })
+    const data = await r.json()
+    if (data.code) setPairingCode(data.code)
+    setActioning(false)
   }
 
   const copyWebhook = () => {
@@ -199,32 +216,75 @@ export default function WhatsAppAdminPage() {
 
           {/* ════ Card: QR code / conectar ════ */}
           {status?.configured && status.state !== 'open' && (
-            <div className={s.card} style={{ textAlign: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16a34a' }}>
-                  <Smartphone size={18} />
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                  <h2 style={{ margin: 0, fontWeight: 700, color: '#1e293b', fontSize: '1rem' }}>Escanear QR Code</h2>
-                  <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b' }}>Abra o WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
-                </div>
+            <div className={s.card}>
+              {/* Tabs: QR ou Código */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                {(['qr', 'code'] as const).map(tab => (
+                  <button key={tab} onClick={() => setConnectTab(tab)}
+                    className={`${s.btn} ${connectTab === tab ? s.btnPrimary : s.btnGhost}`}
+                    style={{ fontSize: '0.8125rem' }}>
+                    {tab === 'qr' ? '📷 QR Code' : '🔢 Código de pareamento'}
+                  </button>
+                ))}
               </div>
 
-              {status.qr?.base64 ? (
-                <div>
-                  <img
-                    src={status.qr.base64.startsWith('data:') ? status.qr.base64 : `data:image/png;base64,${status.qr.base64}`}
-                    alt="QR Code WhatsApp"
-                    style={{ width: 220, height: 220, borderRadius: 12, border: '4px solid #f1f5f9', margin: '0 auto 16px' }}
-                  />
-                  <p style={{ color: '#94a3b8', fontSize: '0.8125rem', marginBottom: 12 }}>
-                    QR Code expira em 60s — atualizando automaticamente
+              {connectTab === 'qr' ? (
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ margin: '0 0 12px', fontSize: '0.8125rem', color: '#64748b' }}>
+                    Abra o WhatsApp → Dispositivos vinculados → Vincular dispositivo → Escanear QR
                   </p>
-                  <button onClick={fetchStatus} disabled={actioning} className={`${s.btn} ${s.btnGhost}`}>
-                    <RefreshCw size={14} /> Atualizar QR
-                  </button>
+                  {status.qr?.base64 ? (
+                    <>
+                      <img
+                        src={status.qr.base64.startsWith('data:') ? status.qr.base64 : `data:image/png;base64,${status.qr.base64}`}
+                        alt="QR Code WhatsApp"
+                        style={{ width: 220, height: 220, borderRadius: 12, border: '4px solid #f1f5f9', margin: '0 auto 16px', display: 'block' }}
+                      />
+                      <p style={{ color: '#94a3b8', fontSize: '0.8125rem', marginBottom: 12 }}>
+                        QR Code expira em 60s — atualizando automaticamente
+                      </p>
+                      <button onClick={fetchStatus} disabled={actioning} className={`${s.btn} ${s.btnGhost}`}>
+                        <RefreshCw size={14} /> Atualizar QR
+                      </button>
+                    </>
+                  ) : (
+                    <div style={{ padding: '24px 0' }}>
+                      <p style={{ color: '#64748b', marginBottom: 16 }}>Gere o QR Code para conectar</p>
+                      <button onClick={() => action('create')} disabled={actioning} className={`${s.btn} ${s.btnPrimary}`}>
+                        {actioning ? <Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Smartphone size={15} />}
+                        {actioning ? 'Criando instância...' : 'Criar instância e gerar QR'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
+                <div>
+                  <p style={{ margin: '0 0 12px', fontSize: '0.8125rem', color: '#64748b' }}>
+                    Abra o WhatsApp → Dispositivos vinculados → Vincular com número de telefone → Digite o código abaixo
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    <input
+                      type="tel" placeholder="5564999999999 (com código do país)"
+                      value={pairingPhone} onChange={e => setPairingPhone(e.target.value)}
+                      style={{ flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: '0.875rem' }}
+                    />
+                    <button onClick={requestPairingCode} disabled={actioning || !pairingPhone}
+                      className={`${s.btn} ${s.btnPrimary}`} style={{ flexShrink: 0 }}>
+                      {actioning ? <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} /> : 'Gerar código'}
+                    </button>
+                  </div>
+                  {pairingCode && (
+                    <div style={{ background: '#f0fdf4', border: '2px solid #86efac', borderRadius: 12, padding: '16px 20px', textAlign: 'center' }}>
+                      <p style={{ margin: '0 0 6px', fontSize: '0.75rem', color: '#16a34a', fontWeight: 600 }}>CÓDIGO DE PAREAMENTO</p>
+                      <p style={{ margin: 0, fontSize: '2rem', fontWeight: 800, letterSpacing: '0.2em', color: '#15803d', fontFamily: 'monospace' }}>{pairingCode}</p>
+                      <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#64748b' }}>Digite este código no WhatsApp do celular</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* legado — mantém compatibilidade com o else vazio */}
+              {false && (
                 <div style={{ padding: '24px 0' }}>
                   <p style={{ color: '#64748b', marginBottom: 16 }}>Gere o QR Code para conectar</p>
                   <button onClick={() => action('create')} disabled={actioning} className={`${s.btn} ${s.btnPrimary}`}>

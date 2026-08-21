@@ -68,6 +68,19 @@ export async function getQRCode(): Promise<{ base64?: string; code?: string; err
   }
 }
 
+export async function requestPairingCode(phone: string): Promise<{ code?: string; error?: string }> {
+  try {
+    const res = await fetch(`${BASE}/instance/pairingCode/${INSTANCE}`, {
+      method:  'POST',
+      headers: headers(),
+      body:    JSON.stringify({ number: phone }),
+    })
+    return res.json()
+  } catch (e) {
+    return { error: String(e) }
+  }
+}
+
 export async function logoutInstance() {
   const res = await fetch(`${BASE}/instance/logout/${INSTANCE}`, {
     method:  'DELETE',
