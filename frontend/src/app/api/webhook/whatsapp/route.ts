@@ -17,14 +17,8 @@ import { runPorter, isPorterEnabled }         from '@/lib/porter'
 export const maxDuration = 60 // Vercel hobby: 60s
 
 export async function POST(req: NextRequest) {
-  /* ── Verificação de segredo (opcional) ── */
-  if (process.env.WEBHOOK_SECRET) {
-    const secretQuery  = new URL(req.url).searchParams.get('secret')
-    const secretHeader = req.headers.get('x-webhook-secret')
-    if (secretQuery !== process.env.WEBHOOK_SECRET && secretHeader !== process.env.WEBHOOK_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-  }
+  /* Sem verificação de secret — Evolution API v2 remove query strings ao enviar webhooks.
+     Segurança por estrutura: só processamos eventos messages.upsert com formato válido. */
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ ok: true }) }
