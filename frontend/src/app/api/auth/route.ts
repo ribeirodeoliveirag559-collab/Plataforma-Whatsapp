@@ -55,10 +55,9 @@ export async function POST(req: NextRequest) {
         queues:         userQueues,
       }
     })
-  } catch (e: any) {
-    const msg = e?.message ?? String(e)
-    console.error('[auth POST]', msg)
-    return NextResponse.json({ error: 'Erro interno', detail: msg.slice(0, 300) }, { status: 500 })
+  } catch (e) {
+    console.error('[auth POST]', e)
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
 }
 
