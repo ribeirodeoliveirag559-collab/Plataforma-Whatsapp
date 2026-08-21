@@ -16,9 +16,20 @@ export async function POST(req: NextRequest) {
       },
       include: {
         defaultQueue: { select: { id: true, name: true, color: true } },
-        queues:       { select: { queue: { select: { id: true, name: true, color: true } } } },
       }
     })
+
+    let userQueues: { queue: { id: number; name: string; color: string } }[] = []
+    if (user) {
+      try {
+        userQueues = await prisma.userQueue.findMany({
+          where:  { userId: user.id },
+          select: { queue: { select: { id: true, name: true, color: true } } },
+        })
+      } catch {
+        userQueues = []
+      }
+    }
 
     if (!user) return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 401 })
 
@@ -39,7 +50,7 @@ export async function POST(req: NextRequest) {
         isManager:      user.isManager,
         defaultQueueId: user.defaultQueueId,
         defaultQueue:   user.defaultQueue,
-        queues:         user.queues.map(uq => uq.queue),
+        queues:         userQueues.map(uq => uq.queue),
       }
     })
   } catch (e) {
@@ -60,14 +71,23 @@ export async function GET(req: NextRequest) {
       profileSlug: true, avatar: true, isManager: true,
       defaultQueueId: true,
       defaultQueue: { select: { id: true, name: true, color: true } },
-      queues:       { select: { queue: { select: { id: true, name: true, color: true } } } },
     }
   })
 
   if (!user) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
 
+  let userQueues: { queue: { id: number; name: string; color: string } }[] = []
+  try {
+    userQueues = await prisma.userQueue.findMany({
+      where:  { userId: payload.id },
+      select: { queue: { select: { id: true, name: true, color: true } } },
+    })
+  } catch {
+    userQueues = []
+  }
+
   return NextResponse.json({
     ...user,
-    queues: user.queues.map(uq => uq.queue),
+    queues: userQueues.map(uq => uq.queue),
   })
 }
