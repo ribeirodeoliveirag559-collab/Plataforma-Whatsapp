@@ -24,17 +24,29 @@ export default function WhatsAppAdminPage() {
 
   const [status,      setStatus]      = useState<WhatsAppStatus | null>(null)
   const [loading,     setLoading]     = useState(true)
+  const [fetchErr,    setFetchErr]    = useState<string | null>(null)
   const [actioning,   setActioning]   = useState(false)
   const [copied,      setCopied]      = useState(false)
   const [showCleanup, setShowCleanup] = useState(false)
   const [cleanupResult, setCleanupResult] = useState<Record<string, number> | null>(null)
 
   const fetchStatus = useCallback(async () => {
-    const r = await fetch('/api/admin/whatsapp', {
-      headers: { Authorization: `Bearer ${token()}` },
-    })
-    if (r.ok) setStatus(await r.json())
-    setLoading(false)
+    try {
+      const r = await fetch('/api/admin/whatsapp', {
+        headers: { Authorization: `Bearer ${token()}`, 'Cache-Control': 'no-cache' },
+      })
+      const data = await r.json()
+      if (r.ok) {
+        setStatus(data)
+        setFetchErr(null)
+      } else {
+        setFetchErr(`Erro ${r.status}: ${data?.error || 'Acesso negado'}`)
+      }
+    } catch (e: any) {
+      setFetchErr(`Erro de rede: ${e?.message}`)
+    } finally {
+      setLoading(false)
+    }
   }, []) // eslint-disable-line
 
   useEffect(() => { fetchStatus() }, [fetchStatus])
@@ -121,6 +133,21 @@ export default function WhatsAppAdminPage() {
         <div className={s.spinnerWrap}><div className={s.spinner} /></div>
       ) : (
         <div style={{ display: 'grid', gap: 20 }}>
+
+          {/* ════ Card: erro de autenticação / rede ════ */}
+          {fetchErr && (
+            <div className={s.card} style={{ borderLeft: '4px solid #f59e0b', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <AlertTriangle size={22} style={{ color: '#d97706', flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: '0 0 6px', fontWeight: 700, color: '#1e293b' }}>Sessão expirada ou acesso negado</p>
+                <p style={{ margin: '0 0 10px', fontSize: '0.8125rem', color: '#64748b' }}>{fetchErr}</p>
+                <button onClick={() => { localStorage.clear(); router.push('/auth/login') }}
+                  className={`${s.btn} ${s.btnPrimary}`} style={{ fontSize: '0.8125rem' }}>
+                  Fazer login novamente
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ════ Card: não configurado ════ */}
           {!status?.configured && (
