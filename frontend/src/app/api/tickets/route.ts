@@ -13,24 +13,18 @@ export async function GET(req: NextRequest) {
   const pageSize = 20
   const skip     = (page - 1) * pageSize
 
-  // Busca dados do usuário (isManager não está no JWT)
-  const dbUser = await prisma.user.findUnique({
-    where:  { id: payload.id },
-    select: { isManager: true },
-  })
-  const isManager = dbUser?.isManager ?? false
-
-  // Filas do usuário logado
+  // Busca usuário + filas em uma única query
+  let isManager = false
   let userQueueIds: number[] = []
   try {
-    const userQueues = await prisma.userQueue.findMany({
-      where:  { userId: payload.id },
-      select: { queueId: true },
+    const dbUser = await prisma.user.findUnique({
+      where:  { id: payload.id },
+      select: { isManager: true, userQueues: { select: { queueId: true } } },
     })
-    userQueueIds = userQueues.map(q => q.queueId)
+    isManager    = dbUser?.isManager ?? false
+    userQueueIds = dbUser?.userQueues?.map(q => q.queueId) ?? []
   } catch {
-    // Tabela user_queues ainda não existe no banco — trata como sem filas
-    userQueueIds = []
+    // Fallback se tabela user_queues não existir
   }
 
   let where: Record<string, unknown> = {}
