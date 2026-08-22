@@ -73,25 +73,29 @@ export default function AtendimentosPage() {
 
   const token = () => localStorage.getItem('token') ?? ''
 
-  const fetchTickets = useCallback(async (status: TicketStatus, all = false) => {
-    setLoading(true)
-    setFetchError(null)
+  const fetchTickets = useCallback(async (status: TicketStatus, all = false, silent = false) => {
+    if (!silent) setLoading(true)
+    if (!silent) setFetchError(null)
     try {
       const r = await fetch(`/api/tickets?status=${status}&showAll=${all}&pageNumber=1`, {
         headers: { Authorization: `Bearer ${token()}` },
       })
       if (!r.ok) {
-        const err = await r.json().catch(() => ({ error: `HTTP ${r.status}` }))
-        setFetchError(err.error ?? `Erro ${r.status}`)
-        setTickets([])
+        if (!silent) {
+          const err = await r.json().catch(() => ({ error: `HTTP ${r.status}` }))
+          setFetchError(err.error ?? `Erro ${r.status}`)
+          setTickets([])
+        }
         return
       }
       const d = await r.json()
       setTickets(d.tickets ?? [])
     } catch (e) {
-      setFetchError(e instanceof Error ? e.message : 'Erro de conexão')
-      setTickets([])
-    } finally { setLoading(false) }
+      if (!silent) {
+        setFetchError(e instanceof Error ? e.message : 'Erro de conexão')
+        setTickets([])
+      }
+    } finally { if (!silent) setLoading(false) }
   }, [])
 
   useEffect(() => {
@@ -100,6 +104,12 @@ export default function AtendimentosPage() {
   }, [])
 
   useEffect(() => { fetchTickets(tab, showAll); setSelected(null) }, [tab, showAll, fetchTickets])
+
+  // Polling automático — atualiza lista a cada 8s sem mostrar spinner
+  useEffect(() => {
+    const id = setInterval(() => fetchTickets(tab, showAll, true), 8000)
+    return () => clearInterval(id)
+  }, [tab, showAll, fetchTickets])
 
   // Após aceitar/encerrar/transferir, remove da lista e fecha painel
   const afterAction = useCallback((updated: Ticket) => {
@@ -391,6 +401,26 @@ function ChatPanel({
 
   useEffect(() => { fetchMessages() }, [fetchMessages])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  // Polling de mensagens — só acrescenta novas, não recria o array inteiro
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/tickets/${ticket.id}/messages`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!r.ok) return
+        const d: Message[] = await r.json()
+        if (!Array.isArray(d)) return
+        setMessages(prev => {
+          const ids = new Set(prev.map(m => m.id))
+          const fresh = d.filter(m => !ids.has(m.id))
+          return fresh.length > 0 ? [...prev, ...fresh] : prev
+        })
+      } catch { /* ignora erros silenciosos */ }
+    }, 5000)
+    return () => clearInterval(id)
+  }, [ticket.id, token])
 
   const sendMessage = async () => {
     if (!text.trim() || sending) return

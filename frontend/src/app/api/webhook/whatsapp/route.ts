@@ -73,7 +73,8 @@ export async function POST(req: NextRequest) {
   ])
 
   /* Retorna 200 imediatamente — Porter IA roda em background sem bloquear o webhook */
-  if (ticket.status === 'PENDING' && isPorterEnabled()) {
+  /* Só roda Porter se o ticket ainda não foi roteado (sem queueId) */
+  if (ticket.status === 'PENDING' && !ticket.queueId && isPorterEnabled()) {
     const ticketId   = ticket.id
     const contactId  = contact.id
     const contactName = contact.name
