@@ -37,14 +37,14 @@ export async function POST(req: NextRequest) {
     ((message?.documentMessage as Record<string, unknown>)?.caption as string) ||
     '📎 Mídia recebida'
 
-  /* Duplicata */
-  if (msgId) {
-    const existing = await prisma.message.findFirst({ where: { gosacId: msgId } })
-    if (existing) return NextResponse.json({ ok: true })
-  }
+  /* Duplicata + Contato em paralelo */
+  const [existing, contactFound] = await Promise.all([
+    msgId ? prisma.message.findFirst({ where: { gosacId: msgId } }) : Promise.resolve(null),
+    prisma.contact.findFirst({ where: { number, deletedAt: null } }),
+  ])
+  if (existing) return NextResponse.json({ ok: true })
 
-  /* Contato */
-  let contact = await prisma.contact.findFirst({ where: { number, deletedAt: null } })
+  let contact = contactFound
   if (!contact) {
     contact = await prisma.contact.create({ data: { name: pushName || number, number } })
   } else if (pushName && (!contact.name || contact.name === contact.number)) {
@@ -61,14 +61,16 @@ export async function POST(req: NextRequest) {
     ticket = await prisma.ticket.create({ data: { contactId: contact.id, status: 'PENDING' } })
   }
 
-  /* Salva mensagem */
-  await prisma.message.create({
-    data: { body: messageText, fromMe: false, mediaType: 'chat', read: false, ticketId: ticket.id, gosacId: msgId || null },
-  })
-  await prisma.ticket.update({
-    where: { id: ticket.id },
-    data:  { lastMessage: messageText, unreadMessages: { increment: 1 }, updatedAt: new Date() },
-  })
+  /* Salva mensagem + atualiza ticket em paralelo */
+  await Promise.all([
+    prisma.message.create({
+      data: { body: messageText, fromMe: false, mediaType: 'chat', read: false, ticketId: ticket.id, gosacId: msgId || null },
+    }),
+    prisma.ticket.update({
+      where: { id: ticket.id },
+      data:  { lastMessage: messageText, unreadMessages: { increment: 1 }, updatedAt: new Date() },
+    }),
+  ])
 
   /* Retorna 200 imediatamente — Porter IA roda em background sem bloquear o webhook */
   if (ticket.status === 'PENDING' && isPorterEnabled()) {
