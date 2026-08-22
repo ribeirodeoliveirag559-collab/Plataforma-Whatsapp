@@ -1,31 +1,16 @@
-/**
- * POST /api/webhook/whatsapp
- *
- * Recebe eventos da Evolution API:
- *   - messages.upsert  → salva mensagem, roda porteiro IA se ticket PENDING
- *   - connection.update → (ignorado por enquanto)
- *
- * Configure a URL do webhook na Evolution API como:
- *   https://seu-app.vercel.app/api/webhook/whatsapp?secret=SEU_WEBHOOK_SECRET
- */
+import { after }                               from 'next/server'
+import { NextRequest, NextResponse }           from 'next/server'
+import prisma                                  from '@/lib/prisma'
+import { sendText, jidToNumber, isGroupJid }   from '@/lib/evolution'
+import { runPorter, isPorterEnabled }          from '@/lib/porter'
 
-import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
-import { sendText, jidToNumber, isGroupJid } from '@/lib/evolution'
-import { runPorter, isPorterEnabled }         from '@/lib/porter'
-
-export const maxDuration = 60 // Vercel hobby: 60s
+export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
-  /* Sem verificação de secret — Evolution API v2 remove query strings ao enviar webhooks.
-     Segurança por estrutura: só processamos eventos messages.upsert com formato válido. */
-
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ ok: true }) }
 
   const event = body.event as string
-
-  /* ── Só processa mensagens recebidas ── */
   if (event !== 'messages.upsert') return NextResponse.json({ ok: true })
 
   const data = body.data as Record<string, unknown> | undefined
@@ -34,21 +19,16 @@ export async function POST(req: NextRequest) {
   const key = data.key as Record<string, unknown>
   if (!key) return NextResponse.json({ ok: true })
 
-  /* Ignora mensagens enviadas por nós */
   if (key.fromMe === true) return NextResponse.json({ ok: true })
 
   const jid = key.remoteJid as string
-  if (!jid) return NextResponse.json({ ok: true })
+  if (!jid || isGroupJid(jid)) return NextResponse.json({ ok: true })
 
-  /* Ignora grupos */
-  if (isGroupJid(jid)) return NextResponse.json({ ok: true })
+  const number   = jidToNumber(jid)
+  const msgId    = key.id as string
+  const pushName = (data.pushName as string) || ''
+  const message  = data.message as Record<string, unknown> | undefined
 
-  const number     = jidToNumber(jid)
-  const msgId      = key.id as string
-  const pushName   = (data.pushName as string) || ''
-  const message    = data.message as Record<string, unknown> | undefined
-
-  /* Extrai texto da mensagem (suporta vários tipos) */
   const messageText: string =
     (message?.conversation as string) ||
     ((message?.extendedTextMessage as Record<string, unknown>)?.text as string) ||
@@ -57,13 +37,13 @@ export async function POST(req: NextRequest) {
     ((message?.documentMessage as Record<string, unknown>)?.caption as string) ||
     '📎 Mídia recebida'
 
-  /* ── Duplicata? ── */
+  /* Duplicata */
   if (msgId) {
     const existing = await prisma.message.findFirst({ where: { gosacId: msgId } })
     if (existing) return NextResponse.json({ ok: true })
   }
 
-  /* ── Contato ── */
+  /* Contato */
   let contact = await prisma.contact.findFirst({ where: { number, deletedAt: null } })
   if (!contact) {
     contact = await prisma.contact.create({ data: { name: pushName || number, number } })
@@ -72,91 +52,67 @@ export async function POST(req: NextRequest) {
     contact = { ...contact, name: pushName }
   }
 
-  /* ── Ticket ── */
+  /* Ticket */
   let ticket = await prisma.ticket.findFirst({
     where:   { contactId: contact.id, status: { in: ['PENDING', 'OPEN'] } },
     orderBy: { createdAt: 'desc' },
   })
   if (!ticket) {
-    ticket = await prisma.ticket.create({
-      data: { contactId: contact.id, status: 'PENDING' },
-    })
+    ticket = await prisma.ticket.create({ data: { contactId: contact.id, status: 'PENDING' } })
   }
 
-  /* ── Salva mensagem recebida ── */
+  /* Salva mensagem */
   await prisma.message.create({
-    data: {
-      body:      messageText,
-      fromMe:    false,
-      mediaType: 'chat',
-      read:      false,
-      ticketId:  ticket.id,
-      gosacId:   msgId || null,
-    },
+    data: { body: messageText, fromMe: false, mediaType: 'chat', read: false, ticketId: ticket.id, gosacId: msgId || null },
   })
-
   await prisma.ticket.update({
     where: { id: ticket.id },
-    data:  {
-      lastMessage:    messageText,
-      unreadMessages: { increment: 1 },
-      updatedAt:      new Date(),
-    },
+    data:  { lastMessage: messageText, unreadMessages: { increment: 1 }, updatedAt: new Date() },
   })
 
-  /* ── Porteiro IA (só para tickets PENDING) ── */
+  /* Retorna 200 imediatamente — Porter IA roda em background sem bloquear o webhook */
   if (ticket.status === 'PENDING' && isPorterEnabled()) {
-    try {
-      const result = await runPorter(ticket.id)
+    const ticketId   = ticket.id
+    const contactId  = contact.id
+    const contactName = contact.name
 
-      /* Envia resposta pelo WhatsApp */
-      await sendText(number, result.message)
+    after(async () => {
+      try {
+        const result = await runPorter(ticketId)
 
-      /* Salva resposta no banco */
-      await prisma.message.create({
-        data: {
-          body:      result.message,
-          fromMe:    true,
-          mediaType: 'chat',
-          read:      true,
-          ticketId:  ticket.id,
-        },
-      })
+        await sendText(number, result.message)
 
-      await prisma.ticket.update({
-        where: { id: ticket.id },
-        data:  { lastMessage: result.message, updatedAt: new Date() },
-      })
-
-      /* Roteamento: atualiza fila + resumo */
-      if (result.route) {
+        await prisma.message.create({
+          data: { body: result.message, fromMe: true, mediaType: 'chat', read: true, ticketId },
+        })
         await prisma.ticket.update({
-          where: { id: ticket.id },
-          data:  {
-            queueId:   result.route.queueId,
-            aiSummary: result.route.summary,
-          },
+          where: { id: ticketId },
+          data:  { lastMessage: result.message, updatedAt: new Date() },
         })
 
-        /* Atualiza nome/empresa do contato se o porteiro coletou */
-        const updates: Record<string, string | null> = {}
-        if (result.route.clientName && (!contact.name || contact.name === number))
-          updates.name = result.route.clientName
-        if (result.route.company && !contact.company)
-          updates.company = result.route.company
-        if (Object.keys(updates).length)
-          await prisma.contact.update({ where: { id: contact.id }, data: updates })
+        if (result.route) {
+          await prisma.ticket.update({
+            where: { id: ticketId },
+            data:  { queueId: result.route.queueId, aiSummary: result.route.summary },
+          })
+
+          const updates: Record<string, string | null> = {}
+          if (result.route.clientName && (!contactName || contactName === number))
+            updates.name = result.route.clientName
+          if (result.route.company)
+            updates.company = result.route.company
+          if (Object.keys(updates).length)
+            await prisma.contact.update({ where: { id: contactId }, data: updates })
+        }
+      } catch (err) {
+        console.error('[Porter] Erro:', err)
       }
-    } catch (err) {
-      console.error('[Porter] Erro:', err)
-      /* Não falha o webhook se o porteiro der erro */
-    }
+    })
   }
 
   return NextResponse.json({ ok: true })
 }
 
-/* Evolution API faz GET no webhook para verificar disponibilidade */
 export async function GET() {
   return NextResponse.json({ status: 'webhook ativo', timestamp: new Date().toISOString() })
 }
