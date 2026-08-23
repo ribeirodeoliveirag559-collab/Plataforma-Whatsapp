@@ -73,15 +73,18 @@ export async function POST(req: NextRequest) {
   ])
 
   /* Retorna 200 imediatamente — Porter IA roda em background sem bloquear o webhook */
-  /* Só roda Porter se o ticket ainda não foi roteado (sem queueId) */
-  if (ticket.status === 'PENDING' && !ticket.queueId && isPorterEnabled()) {
+  const porterEligible = ticket.status === 'PENDING' && !ticket.queueId && isPorterEnabled()
+  console.log(`[Webhook] ticket=${ticket.id} status=${ticket.status} queueId=${ticket.queueId} porterRun=${porterEligible}`)
+  if (porterEligible) {
     const ticketId   = ticket.id
     const contactId  = contact.id
     const contactName = contact.name
 
     after(async () => {
+      console.log(`[Porter] ticket=${ticketId} iniciando — ${new Date().toISOString()}`)
       try {
         const result = await runPorter(ticketId)
+        console.log(`[Porter] ticket=${ticketId} — route=${!!result.route} msg="${result.message.slice(0, 80)}"`)
 
         await sendText(number, result.message)
 
