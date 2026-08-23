@@ -114,6 +114,34 @@ export async function sendText(number: string, text: string) {
   }
 }
 
+/**
+ * Envia mídia (imagem, vídeo, documento, áudio).
+ * @param mediatype  'image' | 'video' | 'document' | 'audio'
+ * @param media      Base64 sem prefixo data URI, ou URL pública
+ * @param fileName   Nome do arquivo com extensão
+ * @param caption    Legenda opcional
+ */
+export async function sendMedia(
+  number: string,
+  mediatype: 'image' | 'video' | 'document' | 'audio',
+  media: string,
+  fileName: string,
+  caption?: string,
+) {
+  if (!isConfigured()) return null
+  try {
+    const res = await fetch(`${BASE}/message/sendMedia/${INSTANCE}`, {
+      method:  'POST',
+      headers: headers(),
+      body:    JSON.stringify({ number, mediatype, media, fileName, caption }),
+    })
+    return res.json()
+  } catch (e) {
+    console.error('[Evolution] Erro ao enviar mídia:', e)
+    return null
+  }
+}
+
 /* ── webhook ────────────────────────────────────────────────── */
 
 export async function setWebhook(webhookUrl: string, webhookSecret?: string) {
@@ -126,7 +154,7 @@ export async function setWebhook(webhookUrl: string, webhookSecret?: string) {
         enabled:         true,
         url:             webhookUrl,
         webhookByEvents: false,
-        webhookBase64:   false,
+        webhookBase64:   true,   // inclui base64 da mídia no payload
         events:          ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'],
         ...(webhookHeaders && { headers: webhookHeaders }),
       },

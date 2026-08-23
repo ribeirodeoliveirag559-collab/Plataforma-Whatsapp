@@ -6,7 +6,8 @@ import {
   UserCheck, X, ChevronRight, Building2, Phone, Bot,
   ArrowLeftRight, Eye, EyeOff, CalendarClock, Search,
   Loader2, AlertCircle, Pencil, Save, Tag, Briefcase,
-  StickyNote, RotateCcw, Zap,
+  StickyNote, RotateCcw, Zap, Paperclip, FileText,
+  Video, Volume2, Image as ImageIcon,
 } from 'lucide-react'
 
 type TicketStatus = 'PENDING' | 'OPEN' | 'CLOSED'
@@ -35,7 +36,7 @@ interface Ticket  {
 }
 interface Message {
   id: number; body: string | null; fromMe: boolean
-  mediaType: string; createdAt: string
+  mediaType: string; mediaUrl: string | null; createdAt: string
   sender: { id: number; name: string } | null
 }
 
@@ -346,7 +347,9 @@ function ChatPanel({
   const [actioning, setActioning]       = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
   const [showEditContact, setShowEditContact] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const [lightbox, setLightbox]         = useState<string | null>(null)
+  const bottomRef  = useRef<HTMLDivElement>(null)
+  const fileRef    = useRef<HTMLInputElement>(null)
 
   // ── Quick replies ──
   const [quickReplies, setQuickReplies]   = useState<{ id: number; name: string; message: string }[]>([])
@@ -432,6 +435,26 @@ function ChatPanel({
     })
     if (r.ok) { const msg = await r.json(); setMessages(prev => [...prev, msg]); setText('') }
     setSending(false)
+  }
+
+  const sendFile = async (file: File) => {
+    setSending(true)
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const base64 = reader.result as string
+      const mediaType = file.type.startsWith('image/') ? 'image'
+        : file.type.startsWith('video/') ? 'video'
+        : file.type.startsWith('audio/') ? 'audio'
+        : 'document'
+      const r = await fetch(`/api/tickets/${ticket.id}/media`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ mediaType, base64, fileName: file.name }),
+      })
+      if (r.ok) { const msg = await r.json(); setMessages(prev => [...prev, msg]) }
+      setSending(false)
+    }
+    reader.readAsDataURL(file)
   }
 
   const updateStatus = async (status: TicketStatus) => {
@@ -584,16 +607,48 @@ function ChatPanel({
                 </div>
               )}
               <div className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} mb-0.5`}>
-                <div className={`max-w-[72%] px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${
+                <div className={`max-w-[72%] rounded-2xl text-sm leading-relaxed overflow-hidden ${
                   msg.fromMe
                     ? 'bg-indigo-600 text-white rounded-br-sm'
                     : 'bg-white text-slate-800 rounded-bl-sm shadow-sm border border-slate-100'
                 }`}>
-                  {!msg.fromMe && msg.sender && (
-                    <p className="text-xs font-semibold text-indigo-500 mb-0.5">{msg.sender.name}</p>
+                  {/* Imagem */}
+                  {msg.mediaType === 'image' && msg.mediaUrl ? (
+                    <div>
+                      <img
+                        src={msg.mediaUrl}
+                        alt="imagem"
+                        className="max-w-[260px] max-h-[260px] object-cover cursor-pointer block"
+                        onClick={() => setLightbox(msg.mediaUrl!)}
+                      />
+                      {msg.body && msg.body !== '📎 Imagem recebido' && (
+                        <p className="px-3 pt-1.5 pb-0.5 text-sm">{msg.body}</p>
+                      )}
+                    </div>
+                  ) : msg.mediaType === 'video' ? (
+                    <div className="px-3.5 py-2 flex items-center gap-2">
+                      <Video size={18} className="shrink-0 opacity-70" />
+                      <span className="opacity-80">{msg.body || 'Vídeo'}</span>
+                    </div>
+                  ) : msg.mediaType === 'audio' || msg.mediaType === 'ptt' ? (
+                    <div className="px-3.5 py-2 flex items-center gap-2">
+                      <Volume2 size={18} className="shrink-0 opacity-70" />
+                      <span className="opacity-80">Áudio</span>
+                    </div>
+                  ) : msg.mediaType === 'document' ? (
+                    <div className="px-3.5 py-2 flex items-center gap-2">
+                      <FileText size={18} className="shrink-0 opacity-70" />
+                      <span className="opacity-80 truncate max-w-[200px]">{msg.body || 'Documento'}</span>
+                    </div>
+                  ) : (
+                    <div className="px-3.5 py-2">
+                      {!msg.fromMe && msg.sender && (
+                        <p className="text-xs font-semibold text-indigo-500 mb-0.5">{msg.sender.name}</p>
+                      )}
+                      <p className="whitespace-pre-wrap">{msg.body}</p>
+                    </div>
                   )}
-                  <p>{msg.body}</p>
-                  <p className={`text-xs mt-0.5 text-right ${msg.fromMe ? 'text-indigo-200' : 'text-slate-400'}`}>
+                  <p className={`text-xs px-3.5 pb-1.5 text-right ${msg.fromMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                     {fmtTime(msg.createdAt)}
                   </p>
                 </div>
@@ -646,7 +701,26 @@ function ChatPanel({
             </div>
           )}
 
+          {/* Input de arquivo oculto */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) sendFile(f); e.target.value = '' }}
+          />
+
           <div className="px-4 py-3 flex items-end gap-2">
+            {/* Botão de mídia */}
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={sending}
+              title="Enviar imagem ou arquivo"
+              className="w-10 h-10 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-500 rounded-xl flex items-center justify-center transition-colors shrink-0"
+            >
+              <Paperclip size={16} />
+            </button>
+
             <textarea value={text} onChange={e => handleTextChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Digite uma mensagem ou / para respostas rápidas..."
@@ -656,7 +730,7 @@ function ChatPanel({
             />
             <button onClick={sendMessage} disabled={!text.trim() || sending}
               className="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl flex items-center justify-center transition-colors shrink-0">
-              <Send size={16} />
+              {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
             </button>
           </div>
         </div>
@@ -687,6 +761,27 @@ function ChatPanel({
             onContactUpdated(updated)
           }}
         />
+      )}
+
+      {/* Lightbox — visualização de imagem em tela cheia */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/70 hover:text-white"
+            onClick={() => setLightbox(null)}
+          >
+            <X size={28} />
+          </button>
+          <img
+            src={lightbox}
+            alt="imagem"
+            className="max-w-full max-h-full rounded-lg object-contain"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
       )}
     </div>
   )

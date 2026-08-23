@@ -1,8 +1,18 @@
-import { after }                               from 'next/server'
-import { NextRequest, NextResponse }           from 'next/server'
-import prisma                                  from '@/lib/prisma'
-import { sendText, jidToNumber, isGroupJid }   from '@/lib/evolution'
-import { runPorter, isPorterEnabled }          from '@/lib/porter'
+import { after }                                        from 'next/server'
+import { NextRequest, NextResponse }                    from 'next/server'
+import prisma                                           from '@/lib/prisma'
+import { sendText, jidToNumber, isGroupJid }            from '@/lib/evolution'
+import { runPorter, isPorterEnabled }                   from '@/lib/porter'
+
+/** Mapeia messageType da Evolution API para nosso mediaType */
+function toMediaType(msgType: string): string {
+  if (msgType === 'imageMessage')   return 'image'
+  if (msgType === 'videoMessage')   return 'video'
+  if (msgType === 'audioMessage' || msgType === 'sttMessage' || msgType === 'pttMessage') return 'audio'
+  if (msgType === 'documentMessage' || msgType === 'documentWithCaptionMessage') return 'document'
+  if (msgType === 'stickerMessage') return 'sticker'
+  return 'chat'
+}
 
 export const maxDuration = 60
 
@@ -29,13 +39,25 @@ export async function POST(req: NextRequest) {
   const pushName = (data.pushName as string) || ''
   const message  = data.message as Record<string, unknown> | undefined
 
+  const rawMsgType = (data.messageType as string) || 'conversation'
+  const mediaType  = toMediaType(rawMsgType)
+
   const messageText: string =
     (message?.conversation as string) ||
     ((message?.extendedTextMessage as Record<string, unknown>)?.text as string) ||
     ((message?.imageMessage as Record<string, unknown>)?.caption as string) ||
     ((message?.videoMessage as Record<string, unknown>)?.caption as string) ||
+    ((message?.audioMessage as Record<string, unknown>)?.caption as string) ||
     ((message?.documentMessage as Record<string, unknown>)?.caption as string) ||
-    '📎 Mídia recebida'
+    ((message?.documentWithCaptionMessage as Record<string, unknown>)?.caption as string) ||
+    ''
+
+  /* Base64 da Evolution API (webhookBase64: true) — armazena só imagens (vídeos são grandes demais) */
+  const rawBase64 = data.base64 as string | undefined
+  const mediaUrl: string | null =
+    mediaType === 'image' && rawBase64 && rawBase64.length < 3_500_000
+      ? rawBase64   // já vem como "data:image/jpeg;base64,..."
+      : null
 
   /* Duplicata + Contato em paralelo */
   const [existing, contactFound] = await Promise.all([
@@ -62,13 +84,14 @@ export async function POST(req: NextRequest) {
   }
 
   /* Salva mensagem + atualiza ticket em paralelo */
+  const displayBody = messageText || (mediaType !== 'chat' ? `📎 ${mediaType === 'image' ? 'Imagem' : mediaType === 'video' ? 'Vídeo' : mediaType === 'audio' ? 'Áudio' : 'Arquivo'} recebido` : null)
   await Promise.all([
     prisma.message.create({
-      data: { body: messageText, fromMe: false, mediaType: 'chat', read: false, ticketId: ticket.id, gosacId: msgId || null },
+      data: { body: displayBody, fromMe: false, mediaType, mediaUrl, read: false, ticketId: ticket.id, gosacId: msgId || null },
     }),
     prisma.ticket.update({
       where: { id: ticket.id },
-      data:  { lastMessage: messageText, unreadMessages: { increment: 1 }, updatedAt: new Date() },
+      data:  { lastMessage: displayBody, unreadMessages: { increment: 1 }, updatedAt: new Date() },
     }),
   ])
 
