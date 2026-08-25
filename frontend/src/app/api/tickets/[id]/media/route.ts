@@ -58,8 +58,15 @@ export async function POST(req: NextRequest, { params }: Params) {
   ])
 
   if (ticket?.contact?.number) {
+    const messageId = message.id
     after(async () => {
-      await sendMedia(ticket.contact!.number, mediaType, pureBase64, fileName, caption)
+      const result = await sendMedia(ticket.contact!.number, mediaType, pureBase64, fileName, caption) as Record<string, unknown> | null
+      const waId = result?.key
+        ? (result.key as Record<string, unknown>)?.id as string | undefined
+        : undefined
+      if (waId) {
+        await prisma.message.update({ where: { id: messageId }, data: { gosacId: waId } })
+      }
     })
   }
 

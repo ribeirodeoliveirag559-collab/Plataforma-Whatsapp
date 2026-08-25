@@ -17,7 +17,6 @@ export async function GET(req: NextRequest, { params }: Params) {
     orderBy: { createdAt: 'asc' },
   })
 
-  // Marca como lido em background — não bloqueia a resposta
   after(async () => {
     await Promise.all([
       prisma.message.updateMany({
@@ -44,11 +43,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const ticketId = Number(id)
 
-  // 3 queries em paralelo em vez de sequencial
   const [ticket, message] = await Promise.all([
     prisma.ticket.findUnique({
-      where:   { id: ticketId },
-      select:  { contact: { select: { number: true } } },
+      where:  { id: ticketId },
+      select: { contact: { select: { number: true } } },
     }),
     prisma.message.create({
       data: {
@@ -58,6 +56,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         read:         true,
         ticketId,
         senderUserId: payload.id,
+        /* gosacId fica null aqui; é preenchido em after() com o ID retornado pela Evolution API */
       },
       include: { sender: { select: { id: true, name: true } } },
     }),
@@ -67,10 +66,17 @@ export async function POST(req: NextRequest, { params }: Params) {
     }),
   ])
 
-  // Envia pelo WhatsApp em background — não bloqueia a resposta
   if (ticket?.contact?.number) {
+    const messageId = message.id
     after(async () => {
-      await sendText(ticket.contact!.number, body)
+      const result = await sendText(ticket.contact!.number, body) as Record<string, unknown> | null
+      /* Salva o WhatsApp message ID para que o webhook não duplique esta mensagem */
+      const waId = result?.key
+        ? (result.key as Record<string, unknown>)?.id as string | undefined
+        : undefined
+      if (waId) {
+        await prisma.message.update({ where: { id: messageId }, data: { gosacId: waId } })
+      }
     })
   }
 
