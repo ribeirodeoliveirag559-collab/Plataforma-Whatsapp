@@ -95,9 +95,14 @@ export async function POST(req: NextRequest) {
     }),
   ])
 
+  /* Mensagens com mais de 5 minutos são históricas (sync inicial do Baileys) — não aciona o Porter */
+  const msgTimestamp  = data.messageTimestamp as number | undefined
+  const msgAgeSeconds = msgTimestamp ? (Date.now() / 1000 - msgTimestamp) : 0
+  const isLiveMessage = msgAgeSeconds < 300  // menos de 5 minutos
+
   /* Retorna 200 imediatamente — Porter IA roda em background sem bloquear o webhook */
-  const porterEligible = ticket.status === 'PENDING' && !ticket.queueId && isPorterEnabled()
-  console.log(`[Webhook] ticket=${ticket.id} status=${ticket.status} queueId=${ticket.queueId} porterRun=${porterEligible}`)
+  const porterEligible = isLiveMessage && ticket.status === 'PENDING' && !ticket.queueId && isPorterEnabled()
+  console.log(`[Webhook] ticket=${ticket.id} age=${Math.round(msgAgeSeconds)}s live=${isLiveMessage} porterRun=${porterEligible}`)
   if (porterEligible) {
     const ticketId   = ticket.id
     const contactId  = contact.id
