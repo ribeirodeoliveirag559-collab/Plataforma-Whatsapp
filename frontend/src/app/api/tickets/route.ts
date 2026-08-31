@@ -19,10 +19,10 @@ export async function GET(req: NextRequest) {
   try {
     const dbUser = await prisma.user.findUnique({
       where:  { id: payload.id },
-      select: { isManager: true, userQueues: { select: { queueId: true } } },
+      select: { isManager: true, queues: { select: { queueId: true } } },
     })
     isManager    = dbUser?.isManager ?? false
-    userQueueIds = dbUser?.userQueues?.map(q => q.queueId) ?? []
+    userQueueIds = dbUser?.queues?.map(q => q.queueId) ?? []
   } catch {
     // Fallback se tabela user_queues não existir
   }
