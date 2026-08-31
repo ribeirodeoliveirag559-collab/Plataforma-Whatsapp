@@ -116,6 +116,8 @@ export default function AtendimentosPage() {
   const afterAction = useCallback((updated: Ticket) => {
     setTickets(prev => prev.filter(t => t.id !== updated.id))
     setSelected(null)
+    // Ticket encerrado/cancelado → navega para aba Encerrados
+    if (updated.status === 'CLOSED') setTab('CLOSED')
   }, [])
 
   // Atualiza ticket selecionado na lista (ex: ao enviar msg)
