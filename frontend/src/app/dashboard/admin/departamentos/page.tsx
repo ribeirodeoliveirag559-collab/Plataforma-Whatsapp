@@ -5,8 +5,7 @@ import s from '../../dashboard.module.css'
 
 interface Queue { id: number; name: string; color: string; order: number; greetingMessage: string | null; _count: { tickets: number } }
 
-const COLORS = ['#6366f1', '#a78bfa', '#f59e0b', '#22c55e', '#ef4444', '#06b6d4', '#f97316', '#ec4899', '#8b5cf6', '#64748b']
-const EMPTY = { name: '', color: '#6366f1', greetingMessage: '', order: 0 }
+const EMPTY = { name: '', greetingMessage: '', color: '#6366f1', order: 0 }
 
 export default function AdminDepartamentosPage() {
   const [queues, setQueues]   = useState<Queue[]>([])
@@ -108,32 +107,24 @@ export default function AdminDepartamentosPage() {
             <div className={s.modalBody} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {error && <div className={s.errorBox}>{error}</div>}
               <div>
-                <label className={s.label}>Nome</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={s.input} />
+                <label className={s.label}>Nome do departamento</label>
+                <input
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  className={s.input}
+                  placeholder="Ex: Vendas, Suporte, Financeiro..."
+                  autoFocus
+                />
               </div>
               <div>
-                <label className={s.label}>Cor</label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {COLORS.map(c => (
-                    <button key={c} type="button" onClick={() => setForm(f => ({ ...f, color: c }))}
-                      style={{
-                        width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                        background: c,
-                        transform: form.color === c ? 'scale(1.15)' : 'scale(1)',
-                        boxShadow: form.color === c ? `0 0 0 3px white, 0 0 0 5px ${c}` : `0 2px 8px ${c}66`,
-                        transition: 'all 0.2s ease',
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className={s.label}>Ordem</label>
-                <input type="number" value={form.order} onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))} className={s.input} />
-              </div>
-              <div>
-                <label className={s.label}>Mensagem de saudação</label>
-                <textarea value={form.greetingMessage} onChange={e => setForm(f => ({ ...f, greetingMessage: e.target.value }))} rows={3} className={s.textarea} />
+                <label className={s.label}>Descrição</label>
+                <textarea
+                  value={form.greetingMessage}
+                  onChange={e => setForm(f => ({ ...f, greetingMessage: e.target.value }))}
+                  rows={3}
+                  className={s.textarea}
+                  placeholder="Descreva a função deste departamento..."
+                />
               </div>
             </div>
             <div className={s.modalFooter}>
