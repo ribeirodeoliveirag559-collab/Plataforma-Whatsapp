@@ -84,6 +84,7 @@ model Contact {
   tags              ContactTag[]
   scheduledTickets  ScheduledTicket[]
 
+  @@index([number])
   @@map("contacts")
 }
 
@@ -127,6 +128,8 @@ model Ticket {
   messages       Message[]
   scheduledFrom  ScheduledTicket[]
 
+  @@index([contactId, status])
+  @@index([status, updatedAt(sort: Desc)])
   @@map("tickets")
 }
 
@@ -156,6 +159,7 @@ model Message {
   quotedMsg    Message?  @relation("QuotedMessages", fields: [quotedMsgId], references: [id])
   replies      Message[] @relation("QuotedMessages")
 
+  @@index([ticketId, createdAt])
   @@map("messages")
 }
 
