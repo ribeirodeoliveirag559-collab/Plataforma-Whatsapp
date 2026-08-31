@@ -530,12 +530,17 @@ function ChatPanel({
 
         {/* ── Ações por status ── */}
         <div className="flex items-center gap-2 shrink-0">
-          {ticket.status === 'PENDING' && (
+          {ticket.status === 'PENDING' && (<>
             <button onClick={() => updateStatus('OPEN')} disabled={actioning}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors">
               <UserCheck size={13} /> Iniciar conversa
             </button>
-          )}
+            <button onClick={() => updateStatus('CLOSED')} disabled={actioning}
+              title="Cancelar este atendimento"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-red-50 hover:border-red-300 hover:text-red-600 text-slate-500 text-xs font-medium rounded-lg transition-colors">
+              <X size={13} /> Cancelar
+            </button>
+          </>)}
           {ticket.status === 'OPEN' && (<>
             <button onClick={() => setShowTransfer(v => !v)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg transition-colors">
@@ -735,10 +740,14 @@ function ChatPanel({
           </div>
         </div>
       ) : ticket.status === 'PENDING' ? (
-        <div className="bg-amber-50 border-t border-amber-100 px-4 py-3 text-center shrink-0">
+        <div className="bg-amber-50 border-t border-amber-100 px-4 py-3 flex items-center justify-between shrink-0">
           <p className="text-amber-600 text-sm font-medium">
             Clique em <strong>Iniciar conversa</strong> para assumir este atendimento
           </p>
+          <button onClick={() => updateStatus('CLOSED')} disabled={actioning}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 text-xs font-medium rounded-lg transition-colors border border-transparent hover:border-red-200">
+            <X size={13} /> Cancelar atendimento
+          </button>
         </div>
       ) : (
         <div className="bg-slate-50 border-t border-slate-200 px-4 py-3 flex items-center justify-between shrink-0">
