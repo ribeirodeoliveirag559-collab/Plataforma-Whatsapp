@@ -98,13 +98,35 @@ export default function AdminDepartamentosPage() {
       </div>
 
       {modal && (
-        <div className={s.modalOverlay} onClick={() => setModal(null)}>
-          <div className={s.modal} onClick={e => e.stopPropagation()}>
-            <div className={s.modalHeader}>
-              <h2 className={s.modalTitle}>{modal === 'create' ? 'Novo departamento' : 'Editar departamento'}</h2>
-              <button onClick={() => setModal(null)} className={s.btnIcon}><X size={18} /></button>
+        <div
+          onClick={() => setModal(null)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(8px)',
+            zIndex: 9999, display: 'flex', alignItems: 'flex-start',
+            justifyContent: 'center', paddingTop: 100, paddingBottom: 32,
+            paddingLeft: 16, paddingRight: 16, overflowY: 'auto',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480,
+              boxShadow: '0 24px 64px rgba(0,0,0,0.2)', overflow: 'hidden', flexShrink: 0,
+            }}
+          >
+            {/* Cabeçalho */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h2 style={{ margin: 0, fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>
+                {modal === 'create' ? 'Novo departamento' : 'Editar departamento'}
+              </h2>
+              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, borderRadius: 8 }}>
+                <X size={20} />
+              </button>
             </div>
-            <div className={s.modalBody} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* Corpo */}
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               {error && <div className={s.errorBox}>{error}</div>}
               <div>
                 <label className={s.label}>Nome do departamento</label>
@@ -127,7 +149,9 @@ export default function AdminDepartamentosPage() {
                 />
               </div>
             </div>
-            <div className={s.modalFooter}>
+
+            {/* Rodapé */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 10 }}>
               <button onClick={() => setModal(null)} className={`${s.btn} ${s.btnGhost}`} style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
               <button onClick={handleSave} disabled={loading} className={`${s.btn} ${s.btnPrimary}`} style={{ flex: 1, justifyContent: 'center' }}>
                 {loading ? 'Salvando...' : 'Salvar'}
