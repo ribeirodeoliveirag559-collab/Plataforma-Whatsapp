@@ -287,6 +287,9 @@
   border-radius: 22px;
   width: 100%;
   max-width: 480px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 30px 80px -10px rgba(99, 102, 241, 0.35);
   overflow: hidden;
 }
@@ -304,7 +307,7 @@
   color: #1e293b;
   margin: 0;
 }
-.modalBody { padding: 22px 24px; }
+.modalBody { padding: 22px 24px; overflow-y: auto; flex: 1; }
 .modalFooter {
   display: flex;
   gap: 10px;
