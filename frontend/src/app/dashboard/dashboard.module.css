@@ -273,10 +273,10 @@
   background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(8px);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  z-index: 100;
-  padding: 24px 16px;
+  z-index: 200;
+  padding: 104px 16px 24px;
   overflow-y: auto;
   animation: fadeIn 0.2s ease-out both;
 }
