@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus, Pencil, Trash2, X, Building2 } from 'lucide-react'
 import s from '../../dashboard.module.css'
 
@@ -97,7 +98,7 @@ export default function AdminDepartamentosPage() {
         ))}
       </div>
 
-      {modal && (
+      {modal && createPortal(
         <div
           onClick={() => setModal(null)}
           style={{
@@ -158,7 +159,8 @@ export default function AdminDepartamentosPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
