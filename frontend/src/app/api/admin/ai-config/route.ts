@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest) {
   const allowed = [
     'porterName', 'companyName', 'companyCity', 'companyDescription',
     'businessHours', 'companyAddress', 'companyPhone',
-    'greetingMessage', 'additionalRules', 'collectCompany',
+    'greetingMessage', 'additionalRules', 'collectCompany', 'enabled',
   ]
 
   const data: Record<string, unknown> = {}

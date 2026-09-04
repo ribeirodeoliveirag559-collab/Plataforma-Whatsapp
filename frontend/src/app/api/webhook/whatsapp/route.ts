@@ -142,7 +142,10 @@ export async function POST(req: NextRequest) {
   const isLiveMessage = msgAgeSeconds < 300
 
   // Roda o porteiro enquanto ticket está PENDENTE (mesmo após roteamento, até atendente assumir)
-  const porterEligible = isLiveMessage && ticket.status === 'PENDING' && isPorterEnabled()
+  const aiCfg = isLiveMessage && ticket.status === 'PENDING' && isPorterEnabled()
+    ? await prisma.aIConfig.findFirst({ select: { enabled: true } })
+    : null
+  const porterEligible = isLiveMessage && ticket.status === 'PENDING' && isPorterEnabled() && (aiCfg?.enabled !== false)
   console.log(`[Webhook] ticket=${ticket.id} age=${Math.round(msgAgeSeconds)}s live=${isLiveMessage} porterRun=${porterEligible}`)
 
   if (porterEligible) {

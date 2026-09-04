@@ -195,6 +195,7 @@ model AIConfig {
   greetingMessage    String   @default("")                // Primeira mensagem (deixe vazio para IA gerar)
   additionalRules    String   @default("")                // Instruções extras livres
   collectCompany     Boolean  @default(true)              // Perguntar nome da empresa?
+  enabled            Boolean  @default(true)              // Liga/desliga o Porteiro IA
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

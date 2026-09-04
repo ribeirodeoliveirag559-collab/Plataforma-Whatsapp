@@ -20,12 +20,13 @@ interface AIConfig {
   greetingMessage:    string
   additionalRules:    string
   collectCompany:     boolean
+  enabled:            boolean
 }
 
 const DEFAULT: AIConfig = {
   porterName: 'Sofia', companyName: 'PH Informática', companyCity: 'Itumbiara-GO',
   companyDescription: '', businessHours: '', companyAddress: '', companyPhone: '',
-  greetingMessage: '', additionalRules: '', collectCompany: true,
+  greetingMessage: '', additionalRules: '', collectCompany: true, enabled: true,
 }
 
 export default function PorteiroConfigPage() {
@@ -90,6 +91,55 @@ export default function PorteiroConfigPage() {
 
       <form onSubmit={handleSave}>
         <div style={{ display: 'grid', gap: 24 }}>
+
+          {/* ════ TOGGLE — Ativar / Desativar ════ */}
+          <div className={s.card} style={{
+            background: cfg.enabled
+              ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)'
+              : 'linear-gradient(135deg, #fef2f2, #fee2e2)',
+            border: `2px solid ${cfg.enabled ? '#86efac' : '#fca5a5'}`,
+            transition: 'all 0.2s',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 14,
+                  background: cfg.enabled ? '#bbf7d0' : '#fecaca',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 22,
+                }}>
+                  {cfg.enabled ? '🤖' : '😴'}
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: '1rem', color: cfg.enabled ? '#15803d' : '#b91c1c' }}>
+                    Porteiro IA está {cfg.enabled ? 'ATIVO' : 'DESATIVADO'}
+                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.8125rem', color: cfg.enabled ? '#16a34a' : '#dc2626' }}>
+                    {cfg.enabled
+                      ? 'O assistente responde automaticamente novos atendimentos'
+                      : 'Nenhuma mensagem automática será enviada'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => set('enabled', !cfg.enabled)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: cfg.enabled ? '#22c55e' : '#ef4444',
+                  border: 'none', borderRadius: 14, padding: '12px 20px',
+                  cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0,
+                }}
+              >
+                {cfg.enabled
+                  ? <ToggleRight size={24} style={{ color: '#fff' }} />
+                  : <ToggleLeft  size={24} style={{ color: '#fff' }} />}
+                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#fff' }}>
+                  {cfg.enabled ? 'Desativar' : 'Ativar'}
+                </span>
+              </button>
+            </div>
+          </div>
 
           {/* ════ SEÇÃO 1 — Identidade ════ */}
           <div className={s.card}>
