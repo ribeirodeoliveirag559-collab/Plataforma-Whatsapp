@@ -117,7 +117,7 @@ Somente quando TODOS os dados obrigatórios estiverem coletados, responda APENAS
 {"action":"route","queueId":<id do departamento>,"clientName":"<nome do cliente ou 'Não informado'>","company":"<empresa, CNPJ ou CPF coletado, ou null>","summary":"<resumo para o atendente: tipo de atendimento + dados coletados + demanda>"}`
 
   const completion = await openai.chat.completions.create({
-    model:       'llama-3.3-70b-versatile',
+    model:       'openai/gpt-oss-20b',
     max_tokens:  500,
     temperature: 0.4,
     messages:    [
