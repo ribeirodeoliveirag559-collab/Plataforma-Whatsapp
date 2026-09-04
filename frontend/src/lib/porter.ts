@@ -7,7 +7,7 @@ import OpenAI from 'openai'
 import prisma  from './prisma'
 
 export function isPorterEnabled() {
-  return process.env.PORTER_ENABLED !== 'false' && Boolean(process.env.OPENAI_API_KEY)
+  return process.env.PORTER_ENABLED !== 'false' && Boolean(process.env.GROQ_API_KEY)
 }
 
 export interface PorterResult {
@@ -16,7 +16,10 @@ export interface PorterResult {
 }
 
 export async function runPorter(ticketId: number): Promise<PorterResult> {
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  const openai = new OpenAI({
+    apiKey:  process.env.GROQ_API_KEY,
+    baseURL: 'https://api.groq.com/openai/v1',
+  })
 
   const [rawConfig, queues, messages, ticket] = await Promise.all([
     prisma.aIConfig.findFirst(),
@@ -114,7 +117,7 @@ Somente quando TODOS os dados obrigatórios estiverem coletados, responda APENAS
 {"action":"route","queueId":<id do departamento>,"clientName":"<nome do cliente ou 'Não informado'>","company":"<empresa, CNPJ ou CPF coletado, ou null>","summary":"<resumo para o atendente: tipo de atendimento + dados coletados + demanda>"}`
 
   const completion = await openai.chat.completions.create({
-    model:       'gpt-4o-mini',
+    model:       'llama-3.3-70b-versatile',
     max_tokens:  500,
     temperature: 0.4,
     messages:    [
