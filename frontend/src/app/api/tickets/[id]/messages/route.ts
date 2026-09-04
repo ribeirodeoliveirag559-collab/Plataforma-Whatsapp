@@ -10,6 +10,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!getTokenFromRequest(req)) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   const { id } = await params
   const ticketId = Number(id)
+  const poll = req.nextUrl.searchParams.get('poll') === '1'
 
   const messages = await prisma.message.findMany({
     where:   { ticketId, isDeleted: false },
@@ -17,18 +18,21 @@ export async function GET(req: NextRequest, { params }: Params) {
     orderBy: { createdAt: 'asc' },
   })
 
-  after(async () => {
-    await Promise.all([
-      prisma.message.updateMany({
-        where: { ticketId, fromMe: false, read: false },
-        data:  { read: true },
-      }),
-      prisma.ticket.update({
-        where: { id: ticketId },
-        data:  { unreadMessages: 0 },
-      }),
-    ])
-  })
+  // Marca como lido apenas na primeira abertura (não no polling) — usa after() para não atrasar a resposta
+  if (!poll) {
+    after(async () => {
+      await Promise.all([
+        prisma.message.updateMany({
+          where: { ticketId, fromMe: false, read: false },
+          data:  { read: true },
+        }),
+        prisma.ticket.update({
+          where: { id: ticketId },
+          data:  { unreadMessages: 0 },
+        }),
+      ])
+    })
+  }
 
   return NextResponse.json(messages)
 }
@@ -56,7 +60,6 @@ export async function POST(req: NextRequest, { params }: Params) {
         read:         true,
         ticketId,
         senderUserId: payload.id,
-        /* gosacId fica null aqui; é preenchido em after() com o ID retornado pela Evolution API */
       },
       include: { sender: { select: { id: true, name: true } } },
     }),
@@ -70,7 +73,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     const messageId = message.id
     after(async () => {
       const result = await sendText(ticket.contact!.number, body) as Record<string, unknown> | null
-      /* Salva o WhatsApp message ID para que o webhook não duplique esta mensagem */
       const waId = result?.key
         ? (result.key as Record<string, unknown>)?.id as string | undefined
         : undefined

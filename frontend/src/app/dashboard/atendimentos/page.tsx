@@ -106,9 +106,11 @@ export default function AtendimentosPage() {
 
   useEffect(() => { fetchTickets(tab, showAll); setSelected(null) }, [tab, showAll, fetchTickets])
 
-  // Polling automático — atualiza lista a cada 8s sem mostrar spinner
+  // Polling automático — atualiza lista a cada 5s sem mostrar spinner, pausa se aba oculta
   useEffect(() => {
-    const id = setInterval(() => fetchTickets(tab, showAll, true), 8000)
+    const id = setInterval(() => {
+      if (!document.hidden) fetchTickets(tab, showAll, true)
+    }, 5000)
     return () => clearInterval(id)
   }, [tab, showAll, fetchTickets])
 
@@ -407,11 +409,12 @@ function ChatPanel({
   useEffect(() => { fetchMessages() }, [fetchMessages])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  // Polling de mensagens — só acrescenta novas, não recria o array inteiro
+  // Polling de mensagens — só acrescenta novas, pausa se aba oculta
   useEffect(() => {
     const id = setInterval(async () => {
+      if (document.hidden) return
       try {
-        const r = await fetch(`/api/tickets/${ticket.id}/messages`, {
+        const r = await fetch(`/api/tickets/${ticket.id}/messages?poll=1`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!r.ok) return
@@ -422,8 +425,8 @@ function ChatPanel({
           const fresh = d.filter(m => !ids.has(m.id))
           return fresh.length > 0 ? [...prev, ...fresh] : prev
         })
-      } catch { /* ignora erros silenciosos */ }
-    }, 5000)
+      } catch { /* silencioso */ }
+    }, 3000)
     return () => clearInterval(id)
   }, [ticket.id, token])
 
