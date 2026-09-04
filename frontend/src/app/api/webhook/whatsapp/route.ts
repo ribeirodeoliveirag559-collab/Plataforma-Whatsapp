@@ -141,7 +141,8 @@ export async function POST(req: NextRequest) {
   const msgAgeSeconds = msgTimestamp ? (Date.now() / 1000 - msgTimestamp) : 0
   const isLiveMessage = msgAgeSeconds < 300
 
-  const porterEligible = isLiveMessage && ticket.status === 'PENDING' && !ticket.queueId && isPorterEnabled()
+  // Roda o porteiro enquanto ticket está PENDENTE (mesmo após roteamento, até atendente assumir)
+  const porterEligible = isLiveMessage && ticket.status === 'PENDING' && isPorterEnabled()
   console.log(`[Webhook] ticket=${ticket.id} age=${Math.round(msgAgeSeconds)}s live=${isLiveMessage} porterRun=${porterEligible}`)
 
   if (porterEligible) {

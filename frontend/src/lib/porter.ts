@@ -18,11 +18,14 @@ export interface PorterResult {
 export async function runPorter(ticketId: number): Promise<PorterResult> {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
-  const [rawConfig, queues, messages] = await Promise.all([
+  const [rawConfig, queues, messages, ticket] = await Promise.all([
     prisma.aIConfig.findFirst(),
     prisma.queue.findMany({ where: { deletedAt: null }, select: { id: true, name: true }, orderBy: { order: 'asc' } }),
     prisma.message.findMany({ where: { ticketId, isDeleted: false }, orderBy: { createdAt: 'asc' } }),
+    prisma.ticket.findUnique({ where: { id: ticketId }, select: { queueId: true } }),
   ])
+
+  const alreadyRouted = !!ticket?.queueId
 
   const cfg = {
     porterName:         rawConfig?.porterName         || 'Sofia',
@@ -36,11 +39,15 @@ export async function runPorter(ticketId: number): Promise<PorterResult> {
     additionalRules:    rawConfig?.additionalRules    || '',
   }
 
-  /* Se tem saudação personalizada e é a 1ª mensagem do cliente, retorna ela direto */
   const userMsgCount = messages.filter(m => !m.fromMe).length
+
+  /* Se tem saudação personalizada e é a 1ª mensagem do cliente, retorna ela direto */
   if (userMsgCount === 1 && cfg.greetingMessage.trim()) {
     return { message: cfg.greetingMessage.trim(), route: null }
   }
+
+  /* Bloqueia roteamento antes de 3 trocas (garante coleta mínima de info) */
+  const MIN_EXCHANGES = 3
 
   const history = messages.map(m => ({
     role:    m.fromMe ? ('assistant' as const) : ('user' as const),
@@ -118,8 +125,10 @@ Somente quando TODOS os dados obrigatórios estiverem coletados, responda APENAS
 
   const text = (completion.choices[0].message.content || '').trim()
 
-  /* Extrai JSON de roteamento se presente */
-  const jsonMatch = text.match(/\{[^{}]*"action"\s*:\s*"route"[^{}]*\}/)
+  /* Extrai JSON de roteamento — só roteia após mínimo de trocas e se ainda não foi roteado */
+  const jsonMatch = userMsgCount >= MIN_EXCHANGES && !alreadyRouted
+    ? text.match(/\{[^{}]*"action"\s*:\s*"route"[^{}]*\}/)
+    : null
   if (jsonMatch) {
     try {
       const data = JSON.parse(jsonMatch[0]) as {
